@@ -7,10 +7,44 @@ export const PAYMENT_METHODS = [
 ]
 export const paymentLabel = (id) => PAYMENT_METHODS.find((p) => p.id === id)?.short || id
 
+// A "card" in the masters list is one of these kinds. Credit cards carry a limit and can be
+// settled (paid off); meal/fuel/telecom cards are usually employer-loaded and just track spend.
+export const CARD_KINDS = [
+  { id: 'credit', label: 'Credit Card' },
+  { id: 'meal', label: 'Meal Card' },
+  { id: 'fuel', label: 'Fuel Card' },
+  { id: 'telecom', label: 'Telecom Card' },
+]
+export const cardKindLabel = (id) => CARD_KINDS.find((k) => k.id === id)?.label || id
+/** Which card kind a "paid with" method draws from. */
+export const PAYMENT_CARD_KIND = { credit_card: 'credit', meal_card: 'meal', fuel_card: 'fuel', telecom_card: 'telecom' }
+export const isCardPayment = (method) => method in PAYMENT_CARD_KIND
+
+export const EMI_KINDS = [
+  { id: 'loan', label: 'Loan (bank / lender)' },
+  { id: 'card_emi', label: 'Credit card EMI' },
+]
+export const emiKindLabel = (id) => EMI_KINDS.find((k) => k.id === id)?.label || id
+
 export const EXPENSE_CATEGORIES = [
   'Housing', 'Groceries', 'Utilities', 'Transport', 'Fuel', 'Dining', 'Healthcare', 'Shopping',
-  'Travel', 'Insurance', 'Education', 'Entertainment', 'Subscriptions', 'Personal Care', 'Gifts & Donations', 'Other',
+  'Travel', 'Insurance', 'Education', 'Entertainment', 'Subscriptions', 'Personal Care', 'Gifts & Donations',
+  'Credit Card Payment', 'Other',
 ]
+
+// Whether a purchase was made through an app/website or in person, and common vendors for each -
+// always editable; these are just suggestions offered in a datalist.
+export const EXPENSE_CHANNELS = [
+  { id: 'online', label: 'Online / app' },
+  { id: 'physical', label: 'Physical / in-person' },
+]
+export const channelLabel = (id) => EXPENSE_CHANNELS.find((c) => c.id === id)?.label || id
+export const VENDOR_SUGGESTIONS = {
+  online: ['Zepto', 'Blinkit', 'Swiggy', 'Zomato', 'District', 'Kisan Connect', 'Amazon', 'Flipkart', 'Myntra', 'Other'],
+  physical: ['Office canteen', 'Dine out - friends', 'Dine out - family', 'Market purchase', 'Local store', 'Other'],
+}
+
+export const INCOME_SOURCES = ['Salary', 'Bonus', 'Freelance', 'Business', 'Rent', 'Interest', 'Dividend', 'Capital Gains', 'Refund', 'Gift', 'Other']
 
 export const ASSET_TYPES = [
   { id: 'mutual_fund', label: 'Mutual Fund', unitBased: true },

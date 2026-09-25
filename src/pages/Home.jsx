@@ -1,15 +1,19 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, TrendingUp, Wallet, FileUp, ArrowRight, Repeat, Landmark } from 'lucide-react'
 import { useData } from '../ctx/DataContext.jsx'
-import { Card, PageHeader, Stat, Badge, Progress, Empty, Btn } from '../components/ui.jsx'
-import { ChartCard, TimeChart } from '../components/charts.jsx'
+import { Card, PageHeader, Select, Stat, Badge, Progress, Empty, Btn, cx } from '../components/ui.jsx'
+import { ChartCard, Donut, TimeChart, slot } from '../components/charts.jsx'
+import { EXPENSE_CATEGORIES } from '../lib/constants.js'
+import { monthCashflow } from '../lib/derived.js'
 import { inr, inrCompact, pct } from '../lib/format.js'
-import { dateShort, monthLabel, monthShort, dateLabel, daysBetween } from '../lib/dates.js'
+import { dateShort, financialYearLabel, financialYearMonths, lastMonths, monthLabel, monthShort, dateLabel, daysBetween, ym } from '../lib/dates.js'
 import { upcomingSips } from '../lib/schedule.js'
 import { goalView } from '../lib/goalview.js'
 import { STATUS_LABEL } from '../lib/goals.js'
 
 const TONE = { on_track: 'sage', achieved: 'sage', close: 'gold', behind: 'rust' }
+const catColor = (name) => slot(Math.max(EXPENSE_CATEGORIES.indexOf(name), 0))
 
 function greeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening' }
 
@@ -23,6 +27,24 @@ export default function Home() {
   const emis = derived.activeLoans.filter((l) => l.summary.nextDue && daysBetween(today, l.summary.nextDue.date) <= 14)
     .map((l) => ({ date: l.summary.nextDue.date, kind: 'emi', title: l.loan.name, amt: Number(l.loan.emi_amount), person: l.loan.person }))
   const upcoming = [...sips, ...emis].sort((a, b) => (a.date < b.date ? -1 : 1))
+
+  // Month picker driving both pies below.
+  const monthOptions = lastMonths(ym(today), 12)
+  const [selMonth, setSelMonth] = useState(ym(today))
+  const selCf = monthCashflow(data, selMonth)
+  const selOutflow = selCf.expenses + selCf.emi + selCf.invested
+  const mix = [
+    { name: 'Total income', value: selCf.income }, { name: 'Expenses', value: selCf.expenses },
+    { name: 'EMIs deducted', value: selCf.emi }, { name: 'Investments', value: selCf.invested },
+  ].filter((x) => x.value > 0)
+  const mixColor = { 'Total income': 'var(--s1)', Expenses: 'var(--s5)', 'EMIs deducted': 'var(--s3)', Investments: 'var(--s2)' }
+  const catMap = new Map()
+  for (const e of data.expenses) { if (e.category === 'Credit Card Payment' || e.date.slice(0, 7) !== selMonth) continue; catMap.set(e.category, (catMap.get(e.category) || 0) + Number(e.amount)) }
+  const catItems = [...catMap.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
+
+  // Income vs outflow, dual bar, across the current Indian financial year (Apr - Mar).
+  const fyMonths = financialYearMonths(today)
+  const fySeries = fyMonths.map((m) => { const c = monthCashflow(data, m); return { label: monthShort(m), month: m, Income: Math.round(c.income), Outflow: Math.round(c.expenses + c.emi + c.invested) } })
 
   const goals = data.goals.filter((g) => g.active !== false).map((g) => goalView(g, { derived, sips: data.sip_master, today })).sort((a, b) => a.goal.priority - b.goal.priority)
   const noHome = data.emi_master.some((l) => l.loan_type === 'Home Loan' && l.active !== false) && !data.holdings.some((h) => h.asset_type === 'real_estate' && h.active !== false)
@@ -55,7 +77,7 @@ export default function Home() {
 
         <Card title="Coming up · next 14 days" action={<Badge tone="sage"><Repeat size={11} />auto-posted on the day</Badge>}>
           {upcoming.length === 0 ? <p className="py-6 text-center text-[13px] text-muted">No SIPs or EMIs due in the next two weeks.</p> : (
-            <ul className="divide-y divide-line">
+            <ul className={cx('divide-y divide-line', upcoming.length > 5 && 'max-h-[275px] overflow-y-auto pr-1')}>
               {upcoming.map((u, i) => (
                 <li key={i} className="flex items-center gap-3 py-2.5">
                   <div className="w-12 shrink-0 rounded-lg bg-sunken py-1 text-center text-[12px] font-semibold leading-tight">{dateShort(u.date)}</div>
@@ -70,6 +92,27 @@ export default function Home() {
           )}
         </Card>
       </div>
+
+      <div className="mb-5 grid gap-4 lg:grid-cols-3">
+        <Card title="Money mix" subtitle={monthLabel(selMonth)} action={<Select className="!w-auto" value={selMonth} onChange={(e) => setSelMonth(e.target.value)} aria-label="Month">{[...monthOptions].reverse().map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}</Select>}>
+          <Donut items={mix} colorOf={(it) => mixColor[it.name]} />
+        </Card>
+        <Card title="Expenses by category" subtitle={monthLabel(selMonth)}>
+          <Donut items={catItems} colorOf={(it) => catColor(it.name)} />
+        </Card>
+        <Card title="This month's income vs outflow" subtitle={monthLabel(selMonth)}>
+          <div className="grid grid-cols-2 gap-4">
+            <Stat label="Income" value={inr(selCf.income)} tone="pos" />
+            <Stat label="Outflow" value={inr(selOutflow)} sub="expenses + EMIs + investments" tone={selOutflow > selCf.income ? 'neg' : 'neutral'} />
+          </div>
+          <p className="mt-4 border-t border-line pt-3 text-[12.5px] text-soft">{selCf.income - selOutflow >= 0 ? `${inr(selCf.income - selOutflow)} left over` : `${inr(selOutflow - selCf.income)} more went out than came in`}</p>
+        </Card>
+      </div>
+
+      <ChartCard title="Income vs outflow, month by month" subtitle={financialYearLabel(today)} className="mb-5"
+        table={{ head: ['Month', 'Income', 'Outflow'], rows: fySeries.map((s) => [monthLabel(s.month), inr(s.Income), inr(s.Outflow)]) }}>
+        <TimeChart type="bar" data={fySeries} stacked={false} series={[{ key: 'Income', label: 'Income', color: 'var(--s1)' }, { key: 'Outflow', label: 'Outflow', color: 'var(--s5)' }]} height={230} />
+      </ChartCard>
 
       <Card title="Goals" action={<Link to="/goals" className="inline-flex items-center gap-1 text-[12.5px] font-medium text-gold">All goals <ArrowRight size={13} /></Link>}>
         {goals.length === 0 ? <p className="py-4 text-center text-[13px] text-muted">No goals yet. <Link className="underline" to="/goals/manage">Add your first goal</Link> and see the SIP it needs.</p> : (

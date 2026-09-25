@@ -56,6 +56,26 @@ Prefer no GitHub? `npm i -g vercel && vercel` from the project folder does the s
 
 **Custom domain (optional):** Vercel → Project → Settings → Domains. Also add it to Supabase Redirect URLs.
 
+## 3. Updating the app later (new features from Claude)
+
+Every time Claude hands you a new batch of changes - new features, fixes, whatever - the same four steps apply. Nothing here is a one-off; use this each time.
+
+1. **Get the new code into your project folder.** If Claude gave you a zip, unzip it over your existing project folder (or a fresh copy of it) so the changed files are replaced. If your repo already exists and Claude only describes a diff, apply those changes to the matching files. Either way, do this in your **local clone of your GitHub repo**, not a random folder - `git status` should show the changed files afterwards.
+2. **Update the database, if `supabase/schema.sql` changed.** Open Supabase → **SQL Editor → New query**, paste the **entire** file (not just the new part), click **Run**. The whole file is written to be safe to run again on a live database with real data in it - it only ever *adds* columns, tables and indexes (`if not exists`), never renames or drops anything, so nothing you or Sujata have already entered is touched. If a run ever errors, stop and share the error rather than editing the SQL yourself - a hand-edited migration can lose the "safe to re-run" property.
+3. **Commit and push.**
+   ```bash
+   git add -A
+   git commit -m "Update: <short description>"
+   git push
+   ```
+   Vercel is watching the repo and starts a new deployment automatically - usually done in under a minute. Watch it under the Vercel dashboard's **Deployments** tab; it should go green ("Ready"). No Vercel environment variables need to change for a normal feature update (only if Claude tells you a new one was added, e.g. for a new integration).
+4. **Check it, then refresh the apps.**
+   - Open the website in a browser first and click around the new bits.
+   - **PWA on phone/laptop:** it self-updates in the background; if you do not see the new version, close the app fully and reopen it (or pull-to-refresh on Android).
+   - **APK:** you do **not** need to rebuild it. The APK is a thin shell that always loads your live Vercel URL, so it picks up every update automatically the next time it is opened, with no store update or re-install needed.
+
+**If something looks broken after an update:** Vercel keeps every previous deployment. Dashboard → **Deployments** → find the last good one → **⋯ → Promote to Production** to instantly roll back the website while you sort out the problem. This never touches the database, so do it without worrying about your data. (A schema change from step 2 is not automatically undone by this - that is one more reason schema changes are always additive-only.)
+
 ### First run checklist
 
 1. Open the site → sign up → *Start a household* → note the invite code in **Settings**.
@@ -63,7 +83,7 @@ Prefer no GitHub? `npm i -g vercel && vercel` from the project folder does the s
 3. **Banks & cards** – add your accounts and credit cards. **Invest → Import CAS** – upload the PDF (parsed inside your browser; the file is never uploaded). **Invest → SIPs**, **Loans → EMIs**, **Goals**.
 4. Press **Refresh prices**. **Settings → Prices & automation** shows what each step did. If a fund says "no price source", open it and add its ISIN (the CAS import fills this in for you).
 
-## 3. Put it on the phones
+## 4. Put it on the phones
 
 **Easiest (no APK):** the app is a PWA.
 - **Android (Chrome):** menu ⋮ → **Install app** (or *Add to Home screen*). It gets its own icon, full-screen window and app-switcher entry, and updates itself.
@@ -84,27 +104,26 @@ Do this *after* the site is live on its final address; the APK is a thin wrapper
 
 Google Play publishing needs a one-time US$25 developer fee and a review; you do not need it for two phones. If PWABuilder gives you trouble, `npx @bubblewrap/cli init --manifest https://YOUR-URL/manifest.webmanifest` is the command-line route to the same result.
 
-## 4. Running it locally (optional)
+## 5. Running it locally (optional)
 
 ```bash
 npm install
 cp .env.example .env.local      # fill the VITE_ values
 npm run dev                     # http://localhost:5173  (no keys = demo mode with sample data)
 npx vercel dev                  # also serves /api/daily locally (needs the server env vars)
-npm test                        # 107 unit tests
+npm test                        # 120 unit tests
 npm run test:db                 # row-level-security tests against a throw-away local Postgres (needs `apt install postgresql`)
 ```
 
-## 5. Looking after it
+## 6. Looking after it
 
 - **Backups:** Settings → **Download a backup (JSON)**. Do it monthly. The Supabase free plan does not include point-in-time recovery, so this is your safety net. (Supabase's own Project → Database → Backups page lists what your plan includes.)
 - **Free-tier limits (as of writing; check the providers' pricing pages):** Supabase free ≈ 500 MB database (this app uses a few MB per year) and pauses projects after about a week with *no* activity; the daily job counts as activity. Vercel Hobby is for personal, non-commercial use, which this is.
 - **Rotating secrets:** if the service-role key or `CRON_SECRET` ever leaks, regenerate it in Supabase / Vercel and redeploy. The anon key cannot read anything without a login.
-- **Updating the app:** push to GitHub; Vercel redeploys; the installed PWA/APK picks up the new version the next time it opens.
-- **Changing the schema:** edit `supabase/schema.sql` (it is idempotent) and run it again in the SQL editor.
+- **Updating the app or its schema:** see section 3 above - the short version is: get the new files into your repo, re-run `supabase/schema.sql` in the SQL editor if it changed, `git push`, Vercel redeploys automatically.
 - **Leaving:** it is plain Postgres. Supabase → Database → Backups, or `pg_dump`, gives you everything.
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 | Symptom | Likely cause |
 |---|---|

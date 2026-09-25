@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useData } from '../ctx/DataContext.jsx'
-import { Field, Select } from './ui.jsx'
-import { PAYMENT_METHODS } from '../lib/constants.js'
+import { Field, Select, Input } from './ui.jsx'
+import { PAYMENT_METHODS, PAYMENT_CARD_KIND, cardKindLabel, EXPENSE_CHANNELS, VENDOR_SUGGESTIONS } from '../lib/constants.js'
 
 export function useForm(initial) {
   const [f, setF] = useState(initial)
@@ -39,13 +39,13 @@ export function BankSelect({ value, onChange, label = 'Bank account', required, 
   )
 }
 
-export function CardSelect({ value, onChange, label = 'Credit card', required }) {
+export function CardSelect({ value, onChange, label = 'Credit card', required, kind, blank }) {
   const { data } = useData()
-  const cards = data.credit_cards.filter((c) => c.active !== false || c.id === value)
+  const cards = data.credit_cards.filter((c) => (c.active !== false || c.id === value) && (!kind || (c.kind || 'credit') === kind))
   return (
-    <Field label={label} hint={!cards.length ? 'Add cards under Banks & cards' : null}>
+    <Field label={label} hint={!cards.length ? `Add a ${kind ? cardKindLabel(kind).toLowerCase() : 'card'} under Banks & cards` : null}>
       <Select value={value ?? ''} onChange={onChange} required={required}>
-        <option value="">Choose a card…</option>
+        <option value="">{blank || 'Choose a card…'}</option>
         {cards.map((c) => <option key={c.id} value={c.id}>{cardLabel(c)} - {c.issuing_bank}</option>)}
       </Select>
     </Field>
@@ -87,7 +87,28 @@ export function PaymentFields({ f, set }) {
         </Select>
       </Field>
       {f.payment_method === 'bank_upi' && <BankSelect value={f.bank_account_id} onChange={set('bank_account_id')} label="From account" />}
-      {f.payment_method === 'credit_card' && <CardSelect value={f.credit_card_id} onChange={set('credit_card_id')} label="Which card" required />}
+      {f.payment_method in PAYMENT_CARD_KIND && (
+        <CardSelect value={f.credit_card_id} onChange={set('credit_card_id')} label={`Which ${cardKindLabel(PAYMENT_CARD_KIND[f.payment_method]).toLowerCase()}`} kind={PAYMENT_CARD_KIND[f.payment_method]} required={PAYMENT_CARD_KIND[f.payment_method] === 'credit'} />
+      )}
+    </>
+  )
+}
+
+/** Was it bought through an app/website or in person - and where. Both optional; vendor offers suggestions but takes any text. */
+export function ChannelVendorFields({ f, set, listId = 'vendor-suggestions' }) {
+  const suggestions = VENDOR_SUGGESTIONS[f.channel] || [...VENDOR_SUGGESTIONS.online, ...VENDOR_SUGGESTIONS.physical]
+  return (
+    <>
+      <Field label="Purchase type">
+        <Select value={f.channel || ''} onChange={set('channel')}>
+          <option value="">Not specified</option>
+          {EXPENSE_CHANNELS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </Select>
+      </Field>
+      <Field label="Vendor / where">
+        <Input list={listId} value={f.vendor || ''} onChange={set('vendor')} placeholder={f.channel === 'online' ? 'e.g. Zepto, Amazon' : f.channel === 'physical' ? 'e.g. Office canteen' : 'optional'} />
+        <datalist id={listId}>{suggestions.map((s) => <option key={s} value={s === 'Other' ? '' : s} />)}</datalist>
+      </Field>
     </>
   )
 }

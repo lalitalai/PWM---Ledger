@@ -16,7 +16,7 @@ const CASCADE = {
 }
 const NULLIFY = {
   bank_accounts: ['income', 'expenses', 'sip_master', 'emi_master', 'investment_txns', 'emi_prepayments'].map((t) => [t, 'bank_account_id']),
-  credit_cards: [['expenses', 'credit_card_id']],
+  credit_cards: [['expenses', 'credit_card_id'], ['expenses', 'settles_card_id'], ['emi_master', 'credit_card_id']],
   goals: [['holdings', 'goal_id'], ['sip_master', 'goal_id']],
   holdings: [['sip_master', 'holding_id']],
 }

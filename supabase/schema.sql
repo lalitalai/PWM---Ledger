@@ -344,6 +344,31 @@ begin
   end loop;
 end $$;
 
+-- =====================================================================================
+--  MIGRATION (Sep 2026) - additive only, safe to run on an already-live database.
+--  New: card kinds (meal/fuel/telecom, not just credit), no-cost EMIs tagged to a card,
+--  expense purchase channel + vendor, and "Credit Card Payment" settlement tracking.
+-- =====================================================================================
+alter table public.credit_cards add column if not exists kind text not null default 'credit';
+alter table public.credit_cards drop constraint if exists credit_cards_kind_check;
+alter table public.credit_cards add constraint credit_cards_kind_check check (kind in ('credit','meal','fuel','telecom'));
+-- a "limit" is optional/meaningless for a prepaid meal/fuel/telecom card
+alter table public.credit_cards alter column credit_limit drop not null;
+alter table public.credit_cards alter column credit_limit drop default;
+
+alter table public.emi_master add column if not exists emi_kind text not null default 'loan';
+alter table public.emi_master drop constraint if exists emi_master_kind_check;
+alter table public.emi_master add constraint emi_master_kind_check check (emi_kind in ('loan','card_emi'));
+alter table public.emi_master add column if not exists credit_card_id uuid references public.credit_cards(id) on delete set null;
+
+alter table public.expenses add column if not exists channel text;
+alter table public.expenses drop constraint if exists expenses_channel_check;
+alter table public.expenses add constraint expenses_channel_check check (channel is null or channel in ('online','physical'));
+alter table public.expenses add column if not exists vendor text;
+-- which card a 'Credit Card Payment' expense settles (distinct from credit_card_id, which is how it was PAID)
+alter table public.expenses add column if not exists settles_card_id uuid references public.credit_cards(id) on delete set null;
+create index if not exists expenses_settles_card_idx on public.expenses(settles_card_id) where settles_card_id is not null;
+
 -- Nothing is readable without signing in.
 revoke all on all tables in schema public from anon;
 revoke execute on function public.create_household(text, text[], text) from public, anon;

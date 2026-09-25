@@ -115,13 +115,17 @@ function Installments({ sip }) {
 }
 
 export default function Sips() {
-  const { data, derived, today, del, edit, notify } = useData()
+  const { data, derived, today, del, edit, notify, people } = useData()
   const [modal, setModal] = useState(null)
   const [open, setOpen] = useState(null)
-  const sips = [...data.sip_master].sort((a, b) => Number(a.sip_day) - Number(b.sip_day))
+  const [fPerson, setFPerson] = useState('')
+  const [fStatus, setFStatus] = useState('')
+  const status = (s) => (s.active === false ? ['Paused', 'neutral'] : s.end_date && s.end_date < today ? ['Ended', 'neutral'] : ['Active', 'sage'])
+  const sips = [...data.sip_master]
+    .filter((s) => (!fPerson || s.person === fPerson) && (!fStatus || status(s)[0] === fStatus))
+    .sort((a, b) => Number(a.sip_day) - Number(b.sip_day))
   const next = upcomingSips(data.sip_master, today, 40)[0]
   const paid = data.sip_installments.filter((i) => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0)
-  const status = (s) => (s.active === false ? ['Paused', 'neutral'] : s.end_date && s.end_date < today ? ['Ended', 'neutral'] : ['Active', 'sage'])
   const tag = async (s, goal_id) => { try { await edit('sip_master', s.id, { goal_id: goal_id || null }); notify(goal_id ? 'SIP tagged to goal' : 'Goal tag removed') } catch { /* toast */ } }
 
   return (
@@ -137,8 +141,14 @@ export default function Sips() {
         <p className="flex items-center gap-1.5 text-[13px] text-soft"><Repeat size={14} className="text-sage" />Every SIP is recorded as paid on its date - no entry needed. Missed one? Open the SIP and remove that month.</p>
         <Btn variant="primary" onClick={() => setModal({})}><Plus size={16} />New SIP</Btn>
       </div>
+      {data.sip_master.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          <Select className="!w-auto" value={fPerson} onChange={(e) => setFPerson(e.target.value)} aria-label="Person"><option value="">Everyone</option>{[...people, 'Joint'].map((p) => <option key={p}>{p}</option>)}</Select>
+          <Select className="!w-auto" value={fStatus} onChange={(e) => setFStatus(e.target.value)} aria-label="Status"><option value="">Any status</option><option>Active</option><option>Paused</option><option>Ended</option></Select>
+        </div>
+      )}
 
-      {sips.length === 0 ? <Empty title="No SIPs yet" hint="Add a SIP once - fund, category, amount and date - and it posts every month by itself." action={<Btn variant="primary" onClick={() => setModal({})}>Add SIP</Btn>} /> : (
+      {sips.length === 0 ? <Empty title={data.sip_master.length ? 'Nothing matches' : 'No SIPs yet'} hint={data.sip_master.length ? 'Change the filters above.' : 'Add a SIP once - fund, category, amount and date - and it posts every month by itself.'} action={!data.sip_master.length && <Btn variant="primary" onClick={() => setModal({})}>Add SIP</Btn>} /> : (
         <Card pad={false}>
           <ul className="divide-y divide-line">
             {sips.map((s) => {

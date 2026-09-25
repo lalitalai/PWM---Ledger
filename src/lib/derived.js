@@ -9,7 +9,9 @@ const sum = (arr, f) => arr.reduce((t, x) => t + num(f(x)), 0)
 export function monthCashflow(data, month) {
   const inMonth = (d) => d.slice(0, 7) === month
   const income = sum(data.income.filter((r) => inMonth(r.date)), (r) => r.amount)
-  const expenses = sum(data.expenses.filter((r) => inMonth(r.date)), (r) => r.amount)
+  // "Credit Card Payment" rows settle a balance that was already counted as spend when the
+  // purchase itself was logged (accrual, not cash) - so they are excluded here to avoid double counting.
+  const expenses = sum(data.expenses.filter((r) => inMonth(r.date) && r.category !== 'Credit Card Payment'), (r) => r.amount)
   const emiPaid = sum(data.emi_payments.filter((p) => p.status === 'paid' && inMonth(p.due_date)), (p) => p.amount)
   const prepaid = sum(data.emi_prepayments.filter((p) => inMonth(p.date)), (p) => p.amount)
   const sip = sum(data.sip_installments.filter((p) => p.status === 'paid' && inMonth(p.due_date)), (p) => p.amount)

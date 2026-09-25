@@ -119,6 +119,22 @@ export function lastMonths(endYM, n) {
 /** The calendar day before an ISO date. */
 export function dayBefore(iso) { return new Date(Date.parse(iso + 'T00:00:00Z') - 86400000).toISOString().slice(0, 10) }
 
+/** Add n days to an ISO date. */
+export function addDaysISO(iso, n) { return new Date(Date.parse(iso + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10) }
+
+/** The 12 YYYY-MM months (Apr -> Mar) of the Indian financial year containing `iso`. */
+export function financialYearMonths(iso) {
+  const { y, m } = parseISO(iso)
+  const startY = m >= 4 ? y : y - 1
+  return Array.from({ length: 12 }, (_, i) => shiftMonth(`${startY}-04`, i))
+}
+/** 'FY 2026-27' label for the financial year containing `iso`. */
+export function financialYearLabel(iso) {
+  const { y, m } = parseISO(iso)
+  const startY = m >= 4 ? y : y - 1
+  return `FY ${startY}-${String((startY + 1) % 100).padStart(2, '0')}`
+}
+
 /** 'Dec 2043' from an ISO date - for projections where the day of month is not meaningful. */
 export const monthYear = (iso) => (iso ? monthLabel(iso.slice(0, 7)) : '—')
 

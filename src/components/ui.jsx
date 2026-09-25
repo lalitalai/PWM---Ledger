@@ -34,12 +34,15 @@ export function Tabs({ items }) {
   )
 }
 
-export function Card({ title, action, children, className, pad = true, id }) {
+export function Card({ title, subtitle, action, children, className, pad = true, id }) {
   return (
     <section id={id} className={cx('rounded-xl border border-line bg-surface', pad && 'p-4 md:p-5', className)}>
       {(title || action) && (
-        <div className={cx('flex items-center justify-between gap-3', pad ? 'mb-3.5' : 'px-4 pt-4 md:px-5 md:pt-5 mb-3')}>
-          {title && <h2 className="text-[11.5px] font-semibold uppercase tracking-wider text-muted">{title}</h2>}
+        <div className={cx('flex items-start justify-between gap-3', pad ? 'mb-3.5' : 'px-4 pt-4 md:px-5 md:pt-5 mb-3')}>
+          <div>
+            {title && <h2 className="text-[11.5px] font-semibold uppercase tracking-wider text-muted">{title}</h2>}
+            {subtitle && <p className="mt-0.5 text-[12px] text-soft">{subtitle}</p>}
+          </div>
           {action}
         </div>
       )}

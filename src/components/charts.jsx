@@ -2,7 +2,7 @@
 // one axis, thin marks, 2px gaps between stacked fills, legend for 2+ series, hover tooltip,
 // and a "table" view so nothing is colour-only.
 import { useState } from 'react'
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from 'recharts'
 import { Table2, BarChart3 } from 'lucide-react'
 import { inrCompact, inr } from '../lib/format.js'
 import { cx } from './ui.jsx'
@@ -153,6 +153,45 @@ export function HBars({ items, fmt = inr, color = 'var(--s1)', colorOf, max, sho
         </li>
       ))}
     </ul>
+  )
+}
+
+function DonutTip({ active, payload, fmt, total }) {
+  if (!active || !payload?.length) return null
+  const it = payload[0].payload
+  return (
+    <div className="rounded-lg border border-line-strong bg-surface px-3 py-2 text-[12.5px] shadow-lg">
+      <div className="flex items-center gap-1.5 font-medium text-ink"><span className="h-2 w-2 rounded-sm" style={{ background: it.__color }} />{it.name}</div>
+      <div className="tnum mt-0.5 text-soft">{fmt(it.value)} <span className="text-muted">· {total ? Math.round((it.value / total) * 100) : 0}%</span></div>
+    </div>
+  )
+}
+
+/**
+ * Donut / pie chart with 2px surface gaps, fixed-order categorical colour, and a legend that
+ * always carries the value + percent as text (never colour-alone). `colorOf(item, index)` picks
+ * the fill; defaults to the fixed categorical slots.
+ */
+export function Donut({ items, fmt = inr, colorOf, height = 230, innerRadius = 58, onClick }) {
+  const total = items.reduce((s, i) => s + i.value, 0)
+  if (!(total > 0)) return <p className="py-10 text-center text-[13px] text-muted">Nothing to show yet.</p>
+  const col = colorOf || ((it, i) => slot(i))
+  const withColor = items.map((it, i) => ({ ...it, __color: col(it, i) }))
+  return (
+    <div>
+      <div style={{ height }} role="img" aria-label={items.map((i) => `${i.name} ${Math.round((i.value / total) * 100)}%`).join(', ')}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={withColor} dataKey="value" nameKey="name" innerRadius={innerRadius} outerRadius="92%" paddingAngle={2} stroke="var(--surface)" strokeWidth={2}
+              isAnimationActive={false} onClick={onClick ? (d) => onClick(d.payload || d) : undefined} style={onClick ? { cursor: 'pointer' } : undefined}>
+              {withColor.map((it) => <Cell key={it.name} fill={it.__color} />)}
+            </Pie>
+            <Tooltip content={<DonutTip fmt={fmt} total={total} />} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <Legend className="mt-3 justify-center text-center" items={withColor.map((it) => ({ label: `${it.name} · ${fmt(it.value)} (${Math.round((it.value / total) * 100)}%)`, color: it.__color }))} />
+    </div>
   )
 }
 

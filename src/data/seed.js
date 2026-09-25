@@ -22,9 +22,12 @@ export function seedDemo(today) {
     { id: 'bk-icici', name: 'ICICI Joint', bank_name: 'ICICI Bank', owner: 'Joint', account_type: 'Joint Savings', last4: '1149', active: true },
   ])
   const cards = T([
-    { id: 'cc-regalia', name: 'HDFC Regalia', issuing_bank: 'HDFC Bank', credit_limit: 500000, owner: 'Lalit', last4: '2210', billing_day: 18, active: true },
-    { id: 'cc-flip', name: 'Axis Flipkart', issuing_bank: 'Axis Bank', credit_limit: 150000, owner: 'Sujata', last4: '9034', billing_day: 5, active: true },
-    { id: 'cc-sbi', name: 'SBI SimplyCLICK', issuing_bank: 'SBI Card', credit_limit: 200000, owner: 'Joint', last4: '5567', billing_day: 25, active: true },
+    { id: 'cc-regalia', kind: 'credit', name: 'HDFC Regalia', issuing_bank: 'HDFC Bank', credit_limit: 500000, owner: 'Lalit', last4: '2210', billing_day: 18, active: true },
+    { id: 'cc-flip', kind: 'credit', name: 'Axis Flipkart', issuing_bank: 'Axis Bank', credit_limit: 150000, owner: 'Sujata', last4: '9034', billing_day: 5, active: true },
+    { id: 'cc-sbi', kind: 'credit', name: 'SBI SimplyCLICK', issuing_bank: 'SBI Card', credit_limit: 200000, owner: 'Joint', last4: '5567', billing_day: 25, active: true },
+    { id: 'mc-sodexo', kind: 'meal', name: 'Sodexo Meal Card', issuing_bank: 'Employer / Sodexo', credit_limit: 3000, owner: 'Lalit', last4: '4471', active: true },
+    { id: 'fc-fastag', kind: 'fuel', name: 'IOCL XTRAPOWER', issuing_bank: 'Indian Oil', credit_limit: null, owner: 'Lalit', last4: '8820', active: true },
+    { id: 'tc-airtel', kind: 'telecom', name: 'Airtel Postpaid Family', issuing_bank: 'Airtel', credit_limit: null, owner: 'Joint', last4: '', active: true },
   ])
   const goals = T([
     { id: 'g-emerg', name: 'Emergency fund (6 months)', goal_type: 'emergency', target_amount: 270000, target_date: addMonthsISO(today, 10), expected_return: 6.5, inflation_pct: 0, step_up_pct: 0, manual_amount: 40000, priority: 1, active: true },
@@ -70,6 +73,7 @@ export function seedDemo(today) {
     emi({ id: 'l-home', name: 'Home loan - HDFC', lender: 'HDFC Bank', loan_type: 'Home Loan', person: 'Joint', principal: 4200000, interest_rate: 8.65, tenure_months: 240, emi_amount: Math.round(pmt(4200000, 8.65, 240)), outstanding_amount: 3985000, emi_day: 5, bank_account_id: 'bk-hdfc', tax_deductible: true }),
     emi({ id: 'l-car', name: 'Car loan - Axis', lender: 'Axis Bank', loan_type: 'Car Loan', person: 'Lalit', principal: 850000, interest_rate: 9.4, tenure_months: 60, emi_amount: Math.round(pmt(850000, 9.4, 60)), outstanding_amount: 520000, emi_day: 10, bank_account_id: 'bk-hdfc' }),
     emi({ id: 'l-pl', name: 'Personal loan - ICICI', lender: 'ICICI Bank', loan_type: 'Personal Loan', person: 'Sujata', principal: 300000, interest_rate: 13.5, tenure_months: 36, emi_amount: Math.round(pmt(300000, 13.5, 36)), outstanding_amount: 190000, emi_day: 15, bank_account_id: 'bk-sbi' }),
+    emi({ id: 'l-phone', emi_kind: 'card_emi', name: 'iPhone 17 - no-cost EMI', lender: 'HDFC Bank', loan_type: 'Credit Card EMI', person: 'Lalit', principal: 79900, interest_rate: 0, tenure_months: 6, emi_amount: Math.round(79900 / 6), outstanding_amount: Math.round((79900 / 6) * 4), emi_day: 18, bank_account_id: null, credit_card_id: 'cc-regalia' }),
   ])
   const prepay = T([{ id: 'pp-1', emi_id: 'l-pl', date: dateInMonth(mAgo(1), 20), amount: 20000, bank_account_id: 'bk-sbi', note: 'Diwali bonus' }])
 
@@ -88,9 +92,13 @@ export function seedDemo(today) {
 
   // ---- expenses ----------------------------------------------------------------------------------------------
   const expenses = []
-  const add = (date, person, category, note, amount, pm, ref) => {
+  const CARD_METHODS = new Set(['credit_card', 'meal_card', 'fuel_card', 'telecom_card'])
+  const add = (date, person, category, note, amount, pm, ref, extra = {}) => {
     if (date > today) return
-    expenses.push({ id: id('ex'), date, person, category, note, amount, payment_method: pm, bank_account_id: pm === 'bank_upi' ? ref : null, credit_card_id: pm === 'credit_card' ? ref : null })
+    expenses.push({
+      id: id('ex'), date, person, category, note, amount, payment_method: pm,
+      bank_account_id: pm === 'bank_upi' ? ref : null, credit_card_id: CARD_METHODS.has(pm) ? ref : null, ...extra,
+    })
   }
   for (let k = 5; k >= 0; k--) {
     const m = mAgo(k)
@@ -98,22 +106,26 @@ export function seedDemo(today) {
     add(D(3), 'Lalit', 'Housing', 'Rent / maintenance', 12500, 'bank_upi', 'bk-hdfc')
     add(D(6), 'Lalit', 'Utilities', 'Electricity', rnd(1800, 3400), 'credit_card', 'cc-regalia')
     add(D(8), 'Sujata', 'Utilities', 'Broadband + mobile', 1698, 'credit_card', 'cc-flip')
-    add(D(9), 'Lalit', 'Subscriptions', 'OTT + cloud', 1298, 'credit_card', 'cc-regalia')
+    add(D(9), 'Lalit', 'Subscriptions', 'OTT + cloud', 1298, 'credit_card', 'cc-regalia', { channel: 'online', vendor: 'Amazon' })
     add(D(11), 'Sujata', 'Insurance', 'Health premium', 3200, 'bank_upi', 'bk-sbi')
     for (let w = 0; w < 4; w++) {
-      add(D(2 + w * 7), 'Sujata', 'Groceries', 'Weekly groceries', round50(rnd(1800, 3600)), r() > 0.4 ? 'bank_upi' : 'credit_card', r() > 0.4 ? 'bk-icici' : 'cc-flip')
-      add(D(4 + w * 7), 'Lalit', 'Fuel', 'Petrol', round50(rnd(1500, 2600)), 'fuel_card')
-      add(D(1 + w * 7), 'Lalit', 'Dining', 'Office lunches', round50(rnd(700, 1600)), 'meal_card')
+      const onlineGrocery = r() > 0.5
+      add(D(2 + w * 7), 'Sujata', 'Groceries', 'Weekly groceries', round50(rnd(1800, 3600)), r() > 0.4 ? 'bank_upi' : 'credit_card', r() > 0.4 ? 'bk-icici' : 'cc-flip',
+        { channel: onlineGrocery ? 'online' : 'physical', vendor: onlineGrocery ? 'Blinkit' : 'Local store' })
+      add(D(4 + w * 7), 'Lalit', 'Fuel', 'Petrol', round50(rnd(1500, 2600)), 'fuel_card', 'fc-fastag', { channel: 'physical', vendor: 'Fuel pump' })
+      add(D(1 + w * 7), 'Lalit', 'Dining', 'Office lunches', round50(rnd(700, 1600)), 'meal_card', 'mc-sodexo', { channel: 'physical', vendor: 'Office canteen' })
     }
-    add(D(14), 'Sujata', 'Dining', 'Family dinner', round50(rnd(1800, 4200)), 'credit_card', 'cc-regalia')
+    add(D(14), 'Sujata', 'Dining', 'Family dinner', round50(rnd(1800, 4200)), 'credit_card', 'cc-regalia', { channel: 'physical', vendor: 'Dine out - family' })
     add(D(16), 'Lalit', 'Transport', 'Cabs / metro', round50(rnd(900, 2100)), 'bank_upi', 'bk-hdfc')
-    add(D(19), 'Sujata', 'Shopping', 'Clothes & home', round50(rnd(2500, 9000)), 'credit_card', 'cc-flip')
+    add(D(19), 'Sujata', 'Shopping', 'Clothes & home', round50(rnd(2500, 9000)), 'credit_card', 'cc-flip', { channel: 'online', vendor: 'Myntra' })
     add(D(21), 'Lalit', 'Entertainment', 'Movies / games', round50(rnd(600, 1800)), 'credit_card', 'cc-sbi')
-    add(D(22), 'Lalit', 'Utilities', 'Mobile recharge', 599, 'telecom_card')
+    add(D(22), 'Lalit', 'Utilities', 'Mobile recharge', 599, 'telecom_card', 'tc-airtel')
     add(D(24), 'Sujata', 'Healthcare', 'Pharmacy / clinic', round50(rnd(400, 2400)), 'bank_upi', 'bk-sbi')
     if (k % 2 === 0) add(D(26), 'Sujata', 'Personal Care', 'Salon & spa', round50(rnd(1200, 2800)), 'credit_card', 'cc-flip')
     if (k === 3) add(D(27), 'Lalit', 'Travel', 'Weekend trip', 18500, 'credit_card', 'cc-regalia')
     if (k === 1) add(D(25), 'Sujata', 'Gifts & Donations', 'Wedding gift', 7000, 'bank_upi', 'bk-icici')
+    // pay off last month's Regalia bill from the bank account, so Masters shows a real outstanding/settled balance
+    if (k >= 1) add(D(17), 'Lalit', 'Credit Card Payment', 'HDFC Regalia bill payment', round50(rnd(9000, 16000)), 'bank_upi', 'bk-hdfc', { settles_card_id: 'cc-regalia' })
   }
 
   // ---- portfolio history (snapshots) --------------------------------------------------------------------------

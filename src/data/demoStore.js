@@ -59,7 +59,7 @@ export function demoStore({ today, reset = false, persist = true } = {}) {
       const cascade = { sip_master: [['sip_installments', 'sip_id']], emi_master: [['emi_payments', 'emi_id'], ['emi_prepayments', 'emi_id']], holdings: [['investment_txns', 'holding_id']] }
       for (const [child, col] of cascade[table] || []) state.tables[child] = state.tables[child].filter((r) => r[col] !== id)
       // mimic ON DELETE SET NULL
-      const nullify = { bank_accounts: ['income', 'expenses', 'sip_master', 'emi_master'].map((t) => [t, 'bank_account_id']), credit_cards: [['expenses', 'credit_card_id']], goals: [['holdings', 'goal_id'], ['sip_master', 'goal_id']], holdings: [['sip_master', 'holding_id']] }
+      const nullify = { bank_accounts: ['income', 'expenses', 'sip_master', 'emi_master'].map((t) => [t, 'bank_account_id']), credit_cards: [['expenses', 'credit_card_id'], ['expenses', 'settles_card_id'], ['emi_master', 'credit_card_id']], goals: [['holdings', 'goal_id'], ['sip_master', 'goal_id']], holdings: [['sip_master', 'holding_id']] }
       for (const [child, col] of nullify[table] || []) state.tables[child] = state.tables[child].map((r) => (r[col] === id ? { ...r, [col]: null } : r))
       save()
     },
