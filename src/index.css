@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+/* ---- design tokens: light ------------------------------------------------------------------ */
+:root {
+  color-scheme: light;
+  --bg: #F6F2E8;
+  --surface: #FFFEFB;
+  --sunken: #F1ECDF;
+  --ink: #1E2A33;
+  --soft: #55606A;
+  --muted: #7C848C;
+  --line: #E4DCC9;
+  --line-strong: #CDC1A4;
+  --gold: #8F6A1C;
+  --gold-fill: #A9812E;
+  --gold-soft: #EFE3C3;
+  --sage: #3F6F51;
+  --sage-soft: #E0EBE1;
+  --rust: #9C4A36;
+  --rust-soft: #F4E2DB;
+  --sky-soft: #E3ECF5;
+  /* categorical chart slots (validated in light + dark, see docs) */
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+  --grid: #E9E2D0;
+  --axis: #CDC1A4;
+}
+/* ---- dark ------------------------------------------------------------------------------------ */
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #14171A; --surface: #1C2024; --sunken: #171A1E; --ink: #ECE8DD; --soft: #B4B9BE; --muted: #8B9199;
+    --line: #2C3238; --line-strong: #3B434B; --gold: #D9B45C; --gold-fill: #C79A3B; --gold-soft: #3A3120;
+    --sage: #7DBB93; --sage-soft: #1F2E25; --rust: #E1907A; --rust-soft: #3A2620; --sky-soft: #1E2833;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --grid: #262B30; --axis: #3B434B;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14171A; --surface: #1C2024; --sunken: #171A1E; --ink: #ECE8DD; --soft: #B4B9BE; --muted: #8B9199;
+  --line: #2C3238; --line-strong: #3B434B; --gold: #D9B45C; --gold-fill: #C79A3B; --gold-soft: #3A3120;
+  --sage: #7DBB93; --sage-soft: #1F2E25; --rust: #E1907A; --rust-soft: #3A2620; --sky-soft: #1E2833;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --grid: #262B30; --axis: #3B434B;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-soft: var(--soft);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-gold: var(--gold);
+  --color-gold-fill: var(--gold-fill);
+  --color-gold-soft: var(--gold-soft);
+  --color-sage: var(--sage);
+  --color-sage-soft: var(--sage-soft);
+  --color-rust: var(--rust);
+  --color-rust-soft: var(--rust-soft);
+  --color-sky-soft: var(--sky-soft);
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-sans); font-size: 14px; line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+input, select, textarea, button { font: inherit; color: inherit; }
+::selection { background: var(--gold-soft); }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* A bare `grid` on a phone would size its single column to the widest child and push the page sideways; let it shrink. */
+@layer base {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Reusable form-control look (kept as component classes so every page stays consistent) */
+@layer components {
+  .field-input {
+    @apply w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-[14px] text-ink outline-none transition
+           placeholder:text-muted focus:border-gold-fill focus:ring-2 focus:ring-gold-fill/25 disabled:opacity-60;
+    min-height: 40px;
+  }
+  select.field-input { @apply pr-8; }
+  .btn { @apply inline-flex items-center justify-center gap-1.5 rounded-lg border px-3.5 py-2 text-[13.5px] font-medium transition
+           active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none cursor-pointer; min-height: 40px; }
+  .btn-primary { @apply border-gold-fill bg-gold-fill text-white hover:brightness-95; }
+  .btn-secondary { @apply border-line-strong bg-surface text-soft hover:bg-sunken; }
+  .btn-danger { @apply border-rust/40 bg-rust-soft text-rust hover:brightness-95; }
+  .btn-ghost { @apply border-transparent text-soft hover:bg-sunken; }
+  .btn-sm { @apply px-2.5 py-1 text-[12.5px]; min-height: 32px; }
+  .card { @apply rounded-xl border border-line bg-surface p-4 md:p-5; }
+  .th { @apply px-2.5 pb-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted; }
+  .td { @apply border-t border-line px-2.5 py-2.5; }
+}
+
+/* thin scrollbars for wide tables */
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Phone: tables turn into label/value cards (see Table in ui.jsx) */
+@media (max-width: 767px) {
+  table.stack, table.stack tbody { display: block; }
+  table.stack thead { display: none; }
+  table.stack tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 14px; row-gap: 6px; padding: 12px 8px; border-top: 1px solid var(--line); }
+  table.stack tr:first-child { border-top: 0; }
+  table.stack td { display: block; border: 0; padding: 0; text-align: left !important; max-width: none !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; min-width: 0 !important; }
+  table.stack td:first-child, table.stack td:last-child { grid-column: 1 / -1; }
+  table.stack td:last-child { text-align: right !important; }
+  table.stack td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 1px; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  table.stack td:first-child::before { display: none; }
+}

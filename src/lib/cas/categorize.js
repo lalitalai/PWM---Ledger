@@ -1,0 +1,32 @@
+// Best-effort fund category from a scheme name. Users can edit it after import.
+export function inferFundCategory(name = '') {
+  const n = name.toLowerCase()
+  const has = (re) => re.test(n)
+  if (has(/liquid|overnight|money market/)) return 'Liquid'
+  if (has(/arbitrage/)) return 'Arbitrage'
+  if (has(/gold|silver/)) return 'Gold Fund / ETF'
+  if (has(/multi[\s-]*asset/)) return 'Multi Asset'
+  if (has(/balanced advantage|dynamic asset|asset allocation/)) return 'Balanced Advantage'
+  if (has(/aggressive hybrid|equity hybrid|hybrid/)) return 'Aggressive Hybrid'
+  if (has(/equity savings/)) return 'Equity Savings'
+  if (has(/elss|tax saver|tax plan/)) return 'ELSS (Tax Saver)'
+  if (has(/banking (and|&) psu|banking\s*&\s*psu/)) return 'Banking & PSU Debt'
+  if (has(/corporate bond/)) return 'Corporate Bond'
+  if (has(/gilt|g-sec/)) return 'Gilt'
+  if (has(/ultra short|low duration/)) return 'Ultra Short Duration'
+  if (has(/short (term|duration)|medium|long duration|dynamic bond|credit risk|floater|debt|bond/)) return 'Short Duration'
+  if (has(/small\s?cap/) && has(/index|nifty|etf|momentum|quality/)) return 'Index Fund - Mid/Small'
+  if (has(/mid\s?cap/) && has(/index|nifty|etf|momentum/) && !has(/large/)) return 'Index Fund - Mid/Small'
+  if (has(/nifty|sensex|index|etf/)) return 'Index Fund - Large Cap'
+  if (has(/large\s*(&|and)\s*mid/)) return 'Large & Mid Cap'
+  if (has(/value fund|value discovery|contra|dividend yield/)) return 'Value / Contra'
+  if (has(/small\s?cap/)) return 'Small Cap'
+  if (has(/mid\s?cap/)) return 'Mid Cap'
+  if (has(/large\s?cap|bluechip|blue chip/)) return 'Large Cap'
+  if (has(/flexi/)) return 'Flexi Cap'
+  if (has(/multi\s?cap/)) return 'Multi Cap'
+  if (has(/focus/)) return 'Focused'
+  if (has(/international|global|us equity|nasdaq|s&p/)) return 'International'
+  if (has(/sectoral|thematic|infra|pharma|technology|banking|consumption|psu|manufacturing/)) return 'Sectoral / Thematic'
+  return 'Other'
+}
