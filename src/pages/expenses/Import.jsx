@@ -8,6 +8,8 @@ import { guessCategory } from '../../lib/statement/parse.js'
 import { reconcile, MATCH_BADGE } from '../../lib/statement/reconcile.js'
 import { EXPENSE_CATEGORIES } from '../../lib/constants.js'
 import { inr } from '../../lib/format.js'
+import { BankSelect, CardSelect, bankLabel } from '../../components/forms.jsx'
+import { guessCardForPayment, guessStatementBank, matchAccountHint } from '../../lib/accounts.js'
 
 let seq = 0
 const uid = () => `imp-${++seq}`
@@ -33,27 +35,48 @@ export default function Import() {
   const [pageCount, setPageCount] = useState(0)
   const [source, setSource] = useState(null)
   const [result, setResult] = useState(null)
+  const [stmtBank, setStmtBank] = useState('')
+  const [stmtBankGuessed, setStmtBankGuessed] = useState(false)
   const [aliasText, setAliasText] = useState((settings?.transferAliases || []).join(', '))
   const input = useRef(null)
   const catList = [...new Set([...EXPENSE_CATEGORIES, ...data.expenses.map((e) => e.category)])]
 
-  const reset = () => { setStep('idle'); setFile(null); setPw(''); setError(null); setRows([]); setResult(null); setWrongPw(false); setSource(null); if (input.current) input.current.value = '' }
+  const reset = () => { setStep('idle'); setFile(null); setPw(''); setError(null); setRows([]); setResult(null); setWrongPw(false); setSource(null); setStmtBank(''); setStmtBankGuessed(false); if (input.current) input.current.value = '' }
 
   // Two independent checks, both only ever untick (never delete) a row: the exact ref match against
   // earlier imports, then reconcile() against what the app already tracks - auto-posted SIP and EMI
   // instalments, hand-entered additional investments and expenses - plus money that is not spending
   // at all (broker/MF transfers, card bill payments, transfers between household members).
-  const toRows = (parsed, dupRefs, aliases = settings?.transferAliases || []) => reconcile(parsed, data, { people, aliases }).map((r, i) => {
+  //
+  // Every row is tied to one of your bank accounts: UPI-app statements say per row which account paid
+  // ("Paid by Kotak Mahindra Bank 8716", Paytm's "ICICI Bank - 69"); a bank statement is one account
+  // for every row, recognised from its account number. The spender defaults to that account's owner.
+  // A credit-card bill payment is mapped to the card it pays off (guessed where the narration allows),
+  // which lowers that card's outstanding and keeps the payment out of spending totals.
+  const ownerOf = (bankId) => { const o = data.bank_accounts.find((b) => b.id === bankId)?.owner; return people.includes(o) ? o : me || people[0] || '' }
+  const toRows = (parsed, dupRefs, aliases = settings?.transferAliases || [], fallbackBank = stmtBank) => reconcile(parsed, data, { people, aliases }).map((r, i) => {
     const isDup = !!(r.ref && dupRefs.has(r.ref))
     const match = isDup ? null : r.match || null
     const hinted = (r.categoryHint && catList.includes(r.categoryHint)) ? r.categoryHint : guessCategory(r.description, catList)
+    const rowBank = matchAccountHint(r.accountHint, data.bank_accounts)
+    const bank = rowBank || fallbackBank || ''
+    const isBill = match?.kind === 'card_payment'
+    const settles = isBill ? guessCardForPayment(r.description, data.credit_cards, { fromBank: data.bank_accounts.find((b) => b.id === bank) }) : ''
     return {
       key: uid(), idx: i, raw: parsed[i], date: r.date, description: r.description, amount: r.amount, direction: r.direction, ref: r.ref || null, duplicate: isDup, match,
-      include: r.direction === 'debit' && !isDup && !match,
-      category: match?.kind === 'card_payment' && catList.includes('Credit Card Payment') ? 'Credit Card Payment' : hinted,
-      person: me || people[0] || '',
+      // a card bill goes in (as a settlement, not spend) as soon as we know which card it pays
+      include: r.direction === 'debit' && !isDup && (!match || (isBill && !!settles)),
+      category: isBill && catList.includes('Credit Card Payment') ? 'Credit Card Payment' : hinted,
+      settles_card_id: settles,
+      bank_account_id: bank, bankFromRow: !!rowBank, accountHint: r.accountHint || null,
+      person: ownerOf(bank),
     }
   })
+  // Picking the statement's account fills every row that didn't name its own account.
+  const changeStmtBank = (id) => {
+    setStmtBank(id); setStmtBankGuessed(false)
+    setRows((rs) => rs.map((r) => (r.bankFromRow || r.bankTouched ? r : { ...r, bank_account_id: id, person: r.personTouched ? r.person : ownerOf(id) })))
+  }
 
   const readCsv = async (f) => {
     const text = await f.text()
@@ -61,16 +84,21 @@ export default function Import() {
     if (csvError) { setError(csvError); setStep('idle'); return }
     if (!parsed.length) { setError('No transactions could be recognised in this CSV. Check that it has a Date column and a Debit/Credit (or Amount) column.'); setStep('idle'); return }
     setSource('CSV'); setPageCount(0)
-    setRows(toRows(parsed, existingRefs(data.expenses)))
+    const guess = guessStatementBank(f.name, data.bank_accounts)
+    setStmtBank(guess); setStmtBankGuessed(!!guess)
+    setRows(toRows(parsed, existingRefs(data.expenses), undefined, guess))
     setStep('review')
   }
 
   const readPdf = async (f, password) => {
-    const { rows: parsed, pageCount: pc, source: src, reason } = await readStatementPdf(f, password)
+    const { rows: parsed, pageCount: pc, source: src, reason, headerText } = await readStatementPdf(f, password)
     setPageCount(pc); setSource(src)
     if (reason === 'cas') { setError(CAS_MESSAGE); setStep('idle'); return }
     if (!parsed.length) { setError('No transactions could be recognised in this PDF. Every statement is laid out a bit differently - if this keeps happening, add the expenses one by one or several at once instead.'); setStep('idle'); return }
-    setRows(toRows(parsed, existingRefs(data.expenses)))
+    // A bank statement is one account; a UPI-app statement names the account on each row instead.
+    const guess = parsed.some((r) => r.accountHint) ? '' : guessStatementBank(`${headerText}\n${f.name}`, data.bank_accounts)
+    setStmtBank(guess); setStmtBankGuessed(!!guess)
+    setRows(toRows(parsed, existingRefs(data.expenses), undefined, guess))
     setStep('review')
   }
 
@@ -94,7 +122,7 @@ export default function Import() {
     const aliases = aliasText.split(',').map((a) => a.trim()).filter(Boolean)
     try { await saveSettings({ transferAliases: aliases }) } catch { /* toast shown by the store; still re-check locally */ }
     const fresh = toRows(rows.map((r) => r.raw), existingRefs(data.expenses), aliases)
-    setRows((rs) => rs.map((r, i) => ({ ...r, match: fresh[i].match, duplicate: fresh[i].duplicate, include: fresh[i].include })))
+    setRows((rs) => rs.map((r, i) => ({ ...r, match: fresh[i].match, duplicate: fresh[i].duplicate, include: fresh[i].include && (r.category !== 'Credit Card Payment' || !!r.settles_card_id || !fresh[i].match) })))
     notify('Re-checked with your names')
   }
   const setRow = (key, patch) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
@@ -105,10 +133,22 @@ export default function Import() {
   const trackedCount = rows.filter((r) => r.match?.recorded).length
   const notSpendCount = rows.filter((r) => r.match && !r.match.recorded).length
 
+  const hasBanks = data.bank_accounts.length > 0
+  const needAccount = hasBanks ? sel.filter((r) => !r.bank_account_id).length : 0
+  const needCard = sel.filter((r) => r.category === 'Credit Card Payment' && !r.settles_card_id).length
+  const multiAccount = new Set(rows.map((r) => r.bank_account_id).filter(Boolean)).size > 1
+
   const doImport = async () => {
+    if (needAccount) { setError(`Choose the bank account for ${needAccount} ticked row${needAccount === 1 ? '' : 's'} - or pick one for the whole statement at the top.`); return }
+    if (needCard) { setError(`Choose which credit card ${needCard === 1 ? 'this bill payment pays' : `these ${needCard} bill payments pay`} off.`); return }
+    setError(null)
     setStep('importing')
     try {
-      const body = sel.map((r) => ({ date: r.date, person: r.person, category: r.category, note: noteWithRef(r.description, r.ref), amount: r.amount, payment_method: 'bank_upi', bank_account_id: null, credit_card_id: null }))
+      const body = sel.map((r) => ({
+        date: r.date, person: r.person, category: r.category, note: noteWithRef(r.description, r.ref), amount: r.amount,
+        payment_method: 'bank_upi', bank_account_id: r.bank_account_id || null, credit_card_id: null,
+        settles_card_id: r.category === 'Credit Card Payment' ? r.settles_card_id || null : null,
+      }))
       await addMany('expenses', body)
       setResult({ count: body.length, total: body.reduce((s, r) => s + r.amount, 0) })
       setStep('done')
@@ -168,6 +208,17 @@ export default function Import() {
             </p>
           </Card>
           <Card>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] md:items-end">
+              <BankSelect label={rows.some((r) => r.bankFromRow) ? 'Account for rows that don’t name one' : 'Which account is this statement for?'} value={stmtBank} onChange={(e) => changeStmtBank(e.target.value)} required={!rows.every((r) => r.bankFromRow)} />
+              <p className="text-[12.5px] text-muted md:pb-2">
+                {!hasBanks ? 'Add your accounts under Banks & cards so every imported transaction is tied to the account it came from.'
+                  : rows.some((r) => r.bankFromRow) ? `This ${source || 'statement'} names the paying account on each row - ${rows.filter((r) => r.bankFromRow).length} of ${rows.length} rows were matched to your accounts automatically.`
+                  : stmtBankGuessed ? `Recognised from the account number on the statement (${bankLabel(data.bank_accounts.find((b) => b.id === stmtBank) || {})}). Change it if that's wrong.`
+                  : 'Couldn’t tell from the statement which of your accounts this is - pick it once here and every row gets it.'}
+              </p>
+            </div>
+          </Card>
+          <Card>
             <form className="flex flex-col gap-2 md:flex-row md:items-end" onSubmit={(e) => { e.preventDefault(); recheck() }}>
               <div className="flex-1">
                 <Field label="Your names as banks print them (comma-separated)">
@@ -180,19 +231,34 @@ export default function Import() {
           </Card>
           <Card title="Transactions" pad={false}>
             <div className="scroll-x p-2 md:p-3">
-              <table className="w-full min-w-[860px] text-[13px]">
-                <thead><tr><th className="th w-8" /><th className="th">Date</th><th className="th">Description</th><th className="th">Category</th><th className="th">Spent by</th><th className="th text-right">Amount</th><th className="th" /></tr></thead>
+              <table className="w-full min-w-[1080px] text-[13px]">
+                <thead><tr><th className="th w-8" /><th className="th">Date</th><th className="th">Description</th><th className="th">Category</th>{(multiAccount || rows.some((r) => r.bankFromRow) || !stmtBank) && <th className="th">Account</th>}<th className="th">Spent by</th><th className="th text-right">Amount</th><th className="th" /></tr></thead>
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.key} className={r.include ? '' : 'opacity-50'}>
                       <td className="td"><input type="checkbox" checked={r.include} onChange={(e) => setRow(r.key, { include: e.target.checked })} className="h-4 w-4 accent-[var(--gold-fill)]" aria-label={`Import ${r.description}`} /></td>
                       <td className="td"><Input type="date" className="!min-h-[32px] !w-[140px] !py-1 !text-[12.5px]" value={r.date} onChange={(e) => setRow(r.key, { date: e.target.value })} /></td>
-                      <td className="td min-w-[200px]">
+                      <td className="td min-w-[260px]">
                         <Input className="!min-h-[32px] !py-1 !text-[12.5px]" value={r.description} onChange={(e) => setRow(r.key, { description: e.target.value })} />
                         {r.match && <p className="mt-1 max-w-[380px] text-[11.5px] leading-snug text-muted">{r.match.label}</p>}
                       </td>
-                      <td className="td"><Select className="!min-h-[32px] !min-w-[140px] !py-1 !text-[12.5px]" value={r.category} onChange={(e) => setRow(r.key, { category: e.target.value })}>{catList.map((c) => <option key={c}>{c}</option>)}</Select></td>
-                      <td className="td"><Select className="!min-h-[32px] !min-w-[110px] !py-1 !text-[12.5px]" value={r.person} onChange={(e) => setRow(r.key, { person: e.target.value })}>{[...people, 'Joint'].map((p) => <option key={p}>{p}</option>)}</Select></td>
+                      <td className="td">
+                        <Select className="!min-h-[32px] !min-w-[140px] !py-1 !text-[12.5px]" value={r.category} onChange={(e) => setRow(r.key, { category: e.target.value })}>{catList.map((c) => <option key={c}>{c}</option>)}</Select>
+                        {r.category === 'Credit Card Payment' && (
+                          <div className="mt-1">
+                            <CardSelect hideLabel kind="credit" label="Paying off which card" blank="Pays which card?" value={r.settles_card_id} className={cx('!min-h-[30px] !min-w-[140px] !py-0.5 !text-[12px]', !r.settles_card_id && r.include && '!border-rust')}
+                              onChange={(e) => setRow(r.key, { settles_card_id: e.target.value, include: e.target.value ? true : r.include })} />
+                          </div>
+                        )}
+                      </td>
+                      {(multiAccount || rows.some((x) => x.bankFromRow) || !stmtBank) && (
+                        <td className="td">
+                          <BankSelect hideLabel required label="Paid from account" value={r.bank_account_id} className={cx('!min-h-[32px] !min-w-[150px] !py-1 !text-[12.5px]', hasBanks && !r.bank_account_id && r.include && '!border-rust')}
+                            onChange={(e) => setRow(r.key, { bank_account_id: e.target.value, bankTouched: true, person: r.personTouched ? r.person : ownerOf(e.target.value) })} />
+                          {!r.bank_account_id && r.accountHint && <p className="mt-0.5 text-[11px] text-muted">statement says {r.accountHint.bank}{r.accountHint.last ? ` ••${r.accountHint.last}` : ''}</p>}
+                        </td>
+                      )}
+                      <td className="td"><Select className="!min-h-[32px] !min-w-[110px] !py-1 !text-[12.5px]" value={r.person} onChange={(e) => setRow(r.key, { person: e.target.value, personTouched: true })}>{[...people, 'Joint'].map((p) => <option key={p}>{p}</option>)}</Select></td>
                       <td className="td tnum text-right"><Input type="number" min="0" step="0.01" className="!min-h-[32px] !w-[100px] !py-1 !text-right !text-[12.5px]" value={r.amount} onChange={(e) => setRow(r.key, { amount: Number(e.target.value) || 0 })} /></td>
                       <td className="td">
                         {r.duplicate && <Badge tone="gold">maybe duplicate</Badge>}
@@ -204,9 +270,10 @@ export default function Import() {
                 </tbody>
               </table>
             </div>
-            <p className="px-5 pb-4 text-[12px] text-muted">Every imported row is added as a normal expense (Bank Transfer / UPI) - edit the payment method afterwards from the transactions list if any of these were actually on a card.</p>
+            <p className="px-5 pb-4 text-[12px] text-muted">Every imported row is saved as Bank Transfer / UPI against the account shown. A credit-card bill payment is saved against the card it pays off - it lowers that card's outstanding and isn't counted as spending.</p>
           </Card>
           {error && <p className="rounded-lg bg-rust-soft px-3 py-2 text-[13px] text-rust">{error}</p>}
+          {!error && (needAccount > 0 || needCard > 0) && <p className="rounded-lg bg-gold-soft px-3 py-2 text-[13px] text-ink">Before importing: {[needAccount && `${needAccount} ticked row${needAccount === 1 ? ' needs' : 's need'} an account`, needCard && `${needCard} card payment${needCard === 1 ? ' needs' : 's need'} the card it pays off`].filter(Boolean).join(' · ')} (outlined in red).</p>}
           <div className="flex flex-wrap items-center gap-3">
             <Btn variant="primary" onClick={doImport} disabled={step === 'importing' || sel.length === 0}>{step === 'importing' ? 'Importing…' : `Import ${sel.length} expense${sel.length === 1 ? '' : 's'} · ${inr(sel.reduce((s, r) => s + (Number(r.amount) || 0), 0))}`}</Btn>
             <Btn onClick={reset} disabled={step === 'importing'}><X size={15} />Start over</Btn>

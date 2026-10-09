@@ -63,6 +63,13 @@ export function demoStore({ today, reset = false, persist = true } = {}) {
       for (const [child, col] of nullify[table] || []) state.tables[child] = state.tables[child].map((r) => (r[col] === id ? { ...r, [col]: null } : r))
       save()
     },
+    async updateMany(table, ids, patch) {
+      const set = new Set(ids)
+      state.tables[table] = state.tables[table].map((r) => (set.has(r.id) ? { ...r, ...patch } : r))
+      save()
+      return structuredClone(state.tables[table].filter((r) => set.has(r.id)))
+    },
+    async removeMany(table, ids) { for (const id of ids) await this.remove(table, id) },
     async updateHousehold(_id, patch) { state.household = { ...state.household, ...patch }; save(); return structuredClone(state.household) },
     async signOut() {},
     reset() { try { localStorage.removeItem(KEY) } catch { /* ignore */ } },

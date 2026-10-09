@@ -25,6 +25,17 @@ describe('parseGpay (Google Pay transaction history)', () => {
     expect(rows[0].description).toMatch(/Hariom sweets/i)
   })
 
+  it('does not mistake the statement-period header for a transaction', () => {
+    const rows = parseGpay([textPage(
+      '01 September 2026 - 30 September 2026  ₹1,06,038.38  ₹46,125',
+      '01 Sep, 2026  Paid to Kailash Kamble  ₹500',
+      '10:24 PM  UPI Transaction ID: 661045318503',
+      'Paid by Kotak Mahindra Bank 8716',
+    )])
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ amount: 500, accountHint: { bank: 'Kotak Mahindra Bank', last: '8716' } })
+  })
+
   it('returns nothing for text that is not Google Pay-shaped (lets detect.js move on)', () => {
     expect(parseGpay([textPage('Statement of account', '01/09/2026  Some payment  450.00')])).toEqual([])
   })
@@ -42,7 +53,7 @@ describe('parsePaytm (Paytm transaction history)', () => {
       'UPI Ref No: 316011459239',
     )])
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ date: '2026-10-02', amount: 200, direction: 'debit', ref: '316011459239', categoryHint: 'Dining' })
+    expect(rows[0]).toMatchObject({ date: '2026-10-02', amount: 200, direction: 'debit', ref: '316011459239', categoryHint: 'Dining', accountHint: { bank: 'ICICI Bank', last: '69' } })
     expect(rows[0].description).toMatch(/Hariom sweets/i)
   })
 

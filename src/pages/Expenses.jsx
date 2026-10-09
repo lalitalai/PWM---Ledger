@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Route, Routes, useNavigate, useSearchParams } from 'react-router-dom'
-import { Pencil, Plus, Repeat, Search, Trash2 } from 'lucide-react'
+import { AlertTriangle, Pencil, Plus, Repeat, Search, Trash2 } from 'lucide-react'
 import { useData } from '../ctx/DataContext.jsx'
 import Import from './expenses/Import.jsx'
 import { Badge, Btn, Card, ConfirmDelete, Empty, Field, Input, Modal, PageHeader, PersonTag, Segmented, Select, Stat, StatStrip, Table, Tabs, Textarea } from '../components/ui.jsx'
 import { HBars, ChartCard, Donut, TimeChart, slot } from '../components/charts.jsx'
-import { BankSelect, CardSelect, ChannelVendorFields, PaymentFields, PersonSelect, useForm, numOrNull } from '../components/forms.jsx'
+import { BankSelect, CardSelect, ChannelVendorFields, PaymentFields, PersonSelect, bankLabel, cardLabel, useForm, numOrNull } from '../components/forms.jsx'
 import { EXPENSE_CATEGORIES, PAYMENT_CARD_KIND, PAYMENT_METHODS, channelLabel, isCardPayment, paymentLabel } from '../lib/constants.js'
 import { inr } from '../lib/format.js'
+import { defaultBankFor } from '../lib/accounts.js'
 import { addDaysISO, addMonthsISO, dateShort, lastMonths, monthLabel, monthShort, shiftMonth, ym, daysInMonth, parseISO } from '../lib/dates.js'
 
 const TABS = [
@@ -23,7 +24,9 @@ export function ExpenseForm({ row, onDone, sticky = false, formId = 'expense-for
   const { add, edit, addMany, people, me, today, notify, data } = useData()
   const [f, set, setF] = useForm({
     date: row?.date || today, person: row?.person || me || people[0] || '', category: row?.category || 'Groceries', note: row?.note || '',
-    amount: row?.amount ?? '', payment_method: row?.payment_method || 'bank_upi', bank_account_id: row?.bank_account_id || '', credit_card_id: row?.credit_card_id || '',
+    amount: row?.amount ?? '', payment_method: row?.payment_method || 'bank_upi',
+    // a new expense starts on the spender's own account; an old one without an account must be given one on edit
+    bank_account_id: row ? row.bank_account_id || '' : defaultBankFor(me || people[0], data.bank_accounts), credit_card_id: row?.credit_card_id || '',
     channel: row?.channel || '', vendor: row?.vendor || '', settles_card_id: row?.settles_card_id || '',
   })
   const [saved, setSaved] = useState(0)
@@ -114,10 +117,10 @@ function EditDialog({ row, onClose }) {
 }
 
 /* ---------- add multiple transactions in one go ---------- */
-const blankBulkRow = () => ({ category: 'Groceries', amount: '', note: '' })
+const blankBulkRow = () => ({ category: 'Groceries', amount: '', note: '', settles_card_id: '' })
 function BulkAddForm({ onDone }) {
   const { addMany, people, me, today, notify, data } = useData()
-  const [common, setCommon] = useState({ date: today, person: me || people[0] || '', payment_method: 'bank_upi', bank_account_id: '', credit_card_id: '' })
+  const [common, setCommon] = useState({ date: today, person: me || people[0] || '', payment_method: 'bank_upi', bank_account_id: defaultBankFor(me || people[0], data.bank_accounts), credit_card_id: '' })
   const [rows, setRows] = useState([blankBulkRow(), blankBulkRow()])
   const catList = useMemo(() => { const s = new Set(EXPENSE_CATEGORIES); data.expenses.forEach((e) => s.add(e.category)); return [...s] }, [data.expenses])
   const setCommonField = (k) => (e) => setCommon((o) => ({ ...o, [k]: e.target.value }))
@@ -129,7 +132,10 @@ function BulkAddForm({ onDone }) {
     if (common.payment_method === 'credit_card' && !common.credit_card_id) return notify('Choose which credit card', 'error')
     const valid = rows.filter((r) => numOrNull(r.amount) > 0)
     if (!valid.length) return notify('Enter at least one amount', 'error')
+    if (common.payment_method === 'bank_upi' && data.bank_accounts.length && !common.bank_account_id) return notify('Choose which account these were paid from', 'error')
+    if (valid.some((r) => r.category === 'Credit Card Payment' && !r.settles_card_id)) return notify('Choose which card each credit-card payment pays off', 'error')
     const body = valid.map((r) => ({
+      settles_card_id: r.category === 'Credit Card Payment' ? r.settles_card_id || null : null,
       date: common.date, person: common.person, category: r.category, note: r.note.trim() || null, amount: numOrNull(r.amount),
       payment_method: common.payment_method,
       bank_account_id: common.payment_method === 'bank_upi' ? common.bank_account_id || null : null,
@@ -144,7 +150,7 @@ function BulkAddForm({ onDone }) {
         <Field label="Date"><Input required type="date" max={today} value={common.date} onChange={setCommonField('date')} /></Field>
         <PersonSelect label="Spent by" value={common.person} onChange={setCommonField('person')} />
         <Field label="Paid with"><Select value={common.payment_method} onChange={setCommonField('payment_method')}>{PAYMENT_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</Select></Field>
-        {common.payment_method === 'bank_upi' && <BankSelect value={common.bank_account_id} onChange={setCommonField('bank_account_id')} label="From account" />}
+        {common.payment_method === 'bank_upi' && <BankSelect value={common.bank_account_id} onChange={setCommonField('bank_account_id')} label="From account" required />}
         {isCardPayment(common.payment_method) && <CardSelect value={common.credit_card_id} onChange={setCommonField('credit_card_id')} kind={PAYMENT_CARD_KIND[common.payment_method]} required={common.payment_method === 'credit_card'} />}
       </div>
       <p className="text-[12px] text-muted">Same date, person and payment method for every row below - just fill in each transaction's category and amount.</p>
@@ -153,7 +159,9 @@ function BulkAddForm({ onDone }) {
           <div key={i} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1.6fr)_auto] items-end gap-2 rounded-lg border border-line p-2.5">
             <Field label={`#${i + 1} Category`}><Select value={r.category} onChange={setRow(i, 'category')}>{catList.map((c) => <option key={c}>{c}</option>)}</Select></Field>
             <Field label="Amount (₹)"><Input type="number" min="0" step="0.01" inputMode="decimal" value={r.amount} onChange={setRow(i, 'amount')} /></Field>
-            <Field label="Note"><Input value={r.note} onChange={setRow(i, 'note')} placeholder="optional" /></Field>
+            {r.category === 'Credit Card Payment'
+              ? <Field label="Paying off card"><CardSelect hideLabel kind="credit" value={r.settles_card_id} onChange={setRow(i, 'settles_card_id')} required /></Field>
+              : <Field label="Note"><Input value={r.note} onChange={setRow(i, 'note')} placeholder="optional" /></Field>}
             <Btn variant="ghost" size="sm" type="button" aria-label="Remove row" onClick={() => setRows((rs) => rs.filter((_, idx) => idx !== i))} disabled={rows.length <= 1}><Trash2 size={14} /></Btn>
           </div>
         ))}
@@ -269,43 +277,139 @@ function Dashboard() {
 }
 
 /* ---------- transactions list ---------- */
+// The "Account" filter value: 'bank:<id>' / 'card:<id>' for one account or card, 'none' for Bank/UPI
+// expenses that were never given an account (older entries, earlier imports) so they can be fixed.
+const accountOf = (e) => (e.payment_method === 'bank_upi' ? (e.bank_account_id ? `bank:${e.bank_account_id}` : 'none') : e.credit_card_id ? `card:${e.credit_card_id}` : 'none')
+
+function BulkEditDialog({ ids, onClose, onDone }) {
+  const { data, editMany, notify } = useData()
+  const catList = useMemo(() => { const s = new Set(EXPENSE_CATEGORIES); data.expenses.forEach((e) => s.add(e.category)); return [...s] }, [data.expenses])
+  const [f, set] = useForm({ category: '', payment_method: '', bank_account_id: '', credit_card_id: '', settles_card_id: '' })
+  const submit = async (e) => {
+    e.preventDefault()
+    const patch = {}
+    if (f.category) patch.category = f.category
+    if (f.category === 'Credit Card Payment') { if (!f.settles_card_id) return notify('Choose which card these payments pay off', 'error'); patch.settles_card_id = f.settles_card_id }
+    else if (f.category) patch.settles_card_id = null
+    if (f.payment_method) {
+      if (f.payment_method === 'bank_upi' && !f.bank_account_id) return notify('Choose the account', 'error')
+      if (f.payment_method === 'credit_card' && !f.credit_card_id) return notify('Choose the credit card', 'error')
+      patch.payment_method = f.payment_method
+      patch.bank_account_id = f.payment_method === 'bank_upi' ? f.bank_account_id : null
+      patch.credit_card_id = isCardPayment(f.payment_method) ? f.credit_card_id || null : null
+    }
+    if (!Object.keys(patch).length) return notify('Change at least one field', 'error')
+    try { await editMany('expenses', ids, patch); notify(`Updated ${ids.length} expense${ids.length === 1 ? '' : 's'}`); onDone() } catch { /* toast */ }
+  }
+  return (
+    <Modal open onClose={onClose} title={`Edit ${ids.length} selected`} footer={<><Btn onClick={onClose}>Cancel</Btn><Btn variant="primary" type="submit" form="bulk-edit">Apply to {ids.length}</Btn></>}>
+      <form id="bulk-edit" onSubmit={submit} className="grid gap-3.5 sm:grid-cols-2">
+        <p className="text-[12.5px] text-muted sm:col-span-2">Only the fields you set are changed; leave a field on "Keep as is" to leave it alone.</p>
+        <Field label="Category"><Select value={f.category} onChange={set('category')}><option value="">Keep as is</option>{catList.map((c) => <option key={c}>{c}</option>)}</Select></Field>
+        {f.category === 'Credit Card Payment' ? <CardSelect value={f.settles_card_id} onChange={set('settles_card_id')} label="Paying off which card" kind="credit" required /> : <div className="hidden sm:block" />}
+        <Field label="Paid with"><Select value={f.payment_method} onChange={set('payment_method')}><option value="">Keep as is</option>{PAYMENT_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</Select></Field>
+        {f.payment_method === 'bank_upi' && <BankSelect value={f.bank_account_id} onChange={set('bank_account_id')} label="From account" required />}
+        {isCardPayment(f.payment_method) && <CardSelect value={f.credit_card_id} onChange={set('credit_card_id')} kind={PAYMENT_CARD_KIND[f.payment_method]} required={f.payment_method === 'credit_card'} />}
+      </form>
+    </Modal>
+  )
+}
+
 function List() {
-  const { data, derived, del, notify, today, people } = useData()
+  const { data, derived, del, delMany, notify, today, people } = useData()
   const [sp, setSp] = useSearchParams()
   const [edit, setEdit] = useState(null)
   const [q, setQ] = useState('')
-  const f = { p: sp.get('p') || 'm0', category: sp.get('category') || '', person: sp.get('person') || '', method: sp.get('method') || '', channel: sp.get('channel') || '' }
+  const [picked, setPicked] = useState(() => new Set())
+  const [bulkEdit, setBulkEdit] = useState(false)
+  const [confirmBulk, setConfirmBulk] = useState(false)
+  const f = { p: sp.get('p') || 'm0', category: sp.get('category') || '', person: sp.get('person') || '', method: sp.get('method') || '', channel: sp.get('channel') || '', acct: sp.get('acct') || '' }
   const setF = (k, v) => { const n = new URLSearchParams(sp); v ? n.set(k, v) : n.delete(k); setSp(n, { replace: true }) }
   const r = periodRange(f.p, today)
   const rows = data.expenses
     .filter((e) => e.date >= r.from && e.date <= r.to && (!f.category || e.category === f.category) && (!f.person || e.person === f.person) && (!f.method || e.payment_method === f.method) && (!f.channel || e.channel === f.channel)
+      && (!f.acct || accountOf(e) === f.acct)
       && (!q || `${e.note || ''} ${e.category} ${e.vendor || ''}`.toLowerCase().includes(q.toLowerCase())))
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.created_at || '') < (b.created_at || '') ? 1 : -1))
+  const shown = rows.slice(0, 400)
   const total = rows.reduce((s, e) => s + Number(e.amount), 0)
   const cats = [...new Set(data.expenses.map((e) => e.category))].sort()
   const via = (e) => e.payment_method === 'credit_card' ? derived.maps.card[e.credit_card_id]?.name || 'Credit card' : isCardPayment(e.payment_method) ? derived.maps.card[e.credit_card_id]?.name || paymentLabel(e.payment_method) : e.payment_method === 'bank_upi' ? derived.maps.bank[e.bank_account_id]?.name || 'Bank / UPI' : paymentLabel(e.payment_method)
+  const noAccount = (e) => accountOf(e) === 'none' && (e.payment_method === 'bank_upi' ? data.bank_accounts.length > 0 : e.payment_method === 'credit_card')
   const extra = (e) => [e.vendor, e.settles_card_id ? `→ ${derived.maps.card[e.settles_card_id]?.name || 'card'}` : null].filter(Boolean).join(' · ')
+  const missing = data.expenses.filter(noAccount).length
+  const unsettledBills = data.expenses.filter((e) => e.category === 'Credit Card Payment' && !e.settles_card_id).length
+
+  // Selection only ever acts on rows currently on screen - changing a filter never leaves hidden rows selected.
+  const sel = shown.filter((e) => picked.has(e.id))
+  const selTotal = sel.reduce((s, e) => s + Number(e.amount), 0)
+  const allOn = shown.length > 0 && sel.length === shown.length
+  const toggle = (id) => setPicked((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const toggleAll = () => setPicked(allOn ? new Set() : new Set(shown.map((e) => e.id)))
+  const deleteSelected = async () => {
+    const ids = sel.map((e) => e.id)
+    try { await delMany('expenses', ids); notify(`Deleted ${ids.length} expense${ids.length === 1 ? '' : 's'}`); setPicked(new Set()); setConfirmBulk(false) } catch { /* toast */ }
+  }
+  const box = (checked, onChange, label) => <input type="checkbox" checked={checked} onChange={onChange} aria-label={label} className="h-4 w-4 accent-[var(--gold-fill)]" />
 
   return (
     <>
-      <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
         <Select value={f.p} onChange={(e) => setF('p', e.target.value)} aria-label="Period">{PERIODS.map((p) => <option key={p.v} value={p.v}>{p.label}</option>)}</Select>
         <Select value={f.category} onChange={(e) => setF('category', e.target.value)} aria-label="Category"><option value="">All categories</option>{cats.map((c) => <option key={c}>{c}</option>)}</Select>
         <Select value={f.person} onChange={(e) => setF('person', e.target.value)} aria-label="Person"><option value="">Everyone</option>{people.map((p) => <option key={p}>{p}</option>)}</Select>
         <Select value={f.method} onChange={(e) => setF('method', e.target.value)} aria-label="Payment method"><option value="">All payment methods</option>{PAYMENT_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</Select>
+        <Select value={f.acct} onChange={(e) => setF('acct', e.target.value)} aria-label="Account or card">
+          <option value="">All accounts & cards</option>
+          {data.bank_accounts.length > 0 && <optgroup label="Bank accounts">{data.bank_accounts.map((b) => <option key={b.id} value={`bank:${b.id}`}>{bankLabel(b)}</option>)}</optgroup>}
+          {data.credit_cards.length > 0 && <optgroup label="Cards">{data.credit_cards.map((c) => <option key={c.id} value={`card:${c.id}`}>{cardLabel(c)}</option>)}</optgroup>}
+          <option value="none">No account recorded</option>
+        </Select>
         <Select value={f.channel} onChange={(e) => setF('channel', e.target.value)} aria-label="Purchase type"><option value="">Online + physical</option><option value="online">{channelLabel('online')}</option><option value="physical">{channelLabel('physical')}</option></Select>
         <div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><Input className="pl-9" placeholder="Search notes / vendor" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       </div>
+
+      {(missing > 0 || unsettledBills > 0) && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-gold-fill/40 bg-gold-soft px-3.5 py-2.5 text-[13px]">
+          <AlertTriangle size={15} className="shrink-0 text-gold" />
+          <span className="text-ink">
+            {missing > 0 && <>{missing} expense{missing === 1 ? ' has' : 's have'} no account recorded. </>}
+            {unsettledBills > 0 && <>{unsettledBills} credit-card payment{unsettledBills === 1 ? ' isn’t' : 's aren’t'} mapped to a card. </>}
+            Select them and use <b>Edit selected</b> to fix them in one go.
+          </span>
+          {missing > 0 && <Btn size="sm" onClick={() => { const n = new URLSearchParams(sp); n.set('acct', 'none'); n.set('p', 'm12'); setSp(n, { replace: true }) }}>Show them</Btn>}
+          {unsettledBills > 0 && <Btn size="sm" onClick={() => { const n = new URLSearchParams(sp); n.set('category', 'Credit Card Payment'); n.set('p', 'm12'); setSp(n, { replace: true }) }}>Show card payments</Btn>}
+        </div>
+      )}
+
+      {sel.length > 0 && (
+        <div className="sticky top-2 z-20 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-line-strong bg-surface px-3.5 py-2.5 shadow-lg">
+          <span className="text-[13.5px] font-medium">{sel.length} selected</span>
+          <span className="tnum text-[13.5px] text-soft">· {inr(selTotal)}</span>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Btn size="sm" onClick={() => setBulkEdit(true)}><Pencil size={14} />Edit selected</Btn>
+            {confirmBulk
+              ? <><Btn size="sm" variant="danger" onClick={deleteSelected}><Trash2 size={14} />Delete {sel.length} for good</Btn><Btn size="sm" onClick={() => setConfirmBulk(false)}>Keep them</Btn></>
+              : <Btn size="sm" variant="danger" onClick={() => setConfirmBulk(true)}><Trash2 size={14} />Delete {sel.length}</Btn>}
+            <Btn size="sm" variant="ghost" onClick={() => { setPicked(new Set()); setConfirmBulk(false) }}>Clear</Btn>
+          </div>
+        </div>
+      )}
+
       <Card pad={false}>
-        <div className="flex items-center justify-between px-4 pb-1 pt-3.5 text-[13px] text-soft md:px-5"><span>{rows.length} transactions</span><span className="tnum font-semibold text-ink">{inr(total)}</span></div>
+        <div className="flex items-center justify-between px-4 pb-1 pt-3.5 text-[13px] text-soft md:px-5">
+          <label className="flex items-center gap-2">{shown.length > 0 && <span className="md:hidden">{box(allOn, toggleAll, 'Select all shown')}</span>}<span>{rows.length} transactions</span></label>
+          <span className="tnum font-semibold text-ink">{inr(total)}</span>
+        </div>
         {rows.length === 0 ? <div className="p-4"><Empty title="No expenses match" hint="Change the filters or add one." /></div> : (
           <>
             <ul className="divide-y divide-line px-4 pb-2 md:hidden">
-              {rows.slice(0, 400).map((e) => (
-                <li key={e.id} className="flex items-start justify-between gap-3 py-3">
-                  <div className="min-w-0">
+              {shown.map((e) => (
+                <li key={e.id} className="flex items-start gap-3 py-3">
+                  <div className="pt-0.5">{box(picked.has(e.id), () => toggle(e.id), `Select ${e.note || e.category}`)}</div>
+                  <div className="min-w-0 flex-1">
                     <div className="truncate text-[14px] font-medium">{e.note || e.category}</div>
-                    <div className="mt-0.5 text-[12px] leading-snug text-muted">{dateShort(e.date)} · {e.category} · {via(e)}{e.person ? ` · ${e.person}` : ''}{extra(e) ? ` · ${extra(e)}` : ''}</div>
+                    <div className="mt-0.5 text-[12px] leading-snug text-muted">{dateShort(e.date)} · {e.category} · <span className={noAccount(e) ? 'text-rust' : ''}>{noAccount(e) ? 'no account' : via(e)}</span>{e.person ? ` · ${e.person}` : ''}{extra(e) ? ` · ${extra(e)}` : ''}</div>
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="tnum text-[14px] font-semibold">{inr(e.amount)}</div>
@@ -315,25 +419,27 @@ function List() {
               ))}
             </ul>
             <div className="hidden md:block">
-          <Table head={['Date', 'Category', 'Note', 'Paid via', 'By', { label: 'Amount', right: true }, '']} className="px-2 pb-2" stack={false}>
-              {rows.slice(0, 400).map((e) => (
-                <tr key={e.id}>
-                  <td className="td whitespace-nowrap text-soft">{dateShort(e.date)}</td>
-                  <td className="td"><Badge>{e.category}</Badge></td>
-                  <td className="td max-w-[220px] truncate text-soft">{e.note || '—'}{e.vendor ? <span className="text-muted"> · {e.vendor}</span> : ''}</td>
-                  <td className="td whitespace-nowrap text-soft">{via(e)}{e.settles_card_id ? <span className="text-muted"> → {derived.maps.card[e.settles_card_id]?.name || 'card'}</span> : ''}</td>
-                  <td className="td"><PersonTag name={e.person} /></td>
-                  <td className="td tnum text-right font-medium">{inr(e.amount)}</td>
-                  <td className="td whitespace-nowrap text-right"><Btn size="sm" variant="ghost" aria-label="Edit expense" onClick={() => setEdit(e)}><Pencil size={14} /></Btn><ConfirmDelete label="Delete" onConfirm={async () => { try { await del('expenses', e.id); notify('Expense deleted') } catch { /* toast */ } }} /></td>
-                </tr>
-              ))}
-            </Table>
+              <Table head={[{ label: box(allOn, toggleAll, 'Select all shown') }, 'Date', 'Category', 'Note', 'Paid via', 'By', { label: 'Amount', right: true }, '']} className="px-2 pb-2" stack={false}>
+                {shown.map((e) => (
+                  <tr key={e.id} className={picked.has(e.id) ? 'bg-gold-soft/40' : ''}>
+                    <td className="td w-8">{box(picked.has(e.id), () => toggle(e.id), `Select ${e.note || e.category}`)}</td>
+                    <td className="td whitespace-nowrap text-soft">{dateShort(e.date)}</td>
+                    <td className="td"><Badge>{e.category}</Badge></td>
+                    <td className="td max-w-[220px] truncate text-soft">{e.note || '—'}{e.vendor ? <span className="text-muted"> · {e.vendor}</span> : ''}</td>
+                    <td className="td whitespace-nowrap text-soft">{noAccount(e) ? <Badge tone="rust">no account</Badge> : via(e)}{e.settles_card_id ? <span className="text-muted"> → {derived.maps.card[e.settles_card_id]?.name || 'card'}</span> : e.category === 'Credit Card Payment' ? <span className="text-rust"> → which card?</span> : ''}</td>
+                    <td className="td"><PersonTag name={e.person} /></td>
+                    <td className="td tnum text-right font-medium">{inr(e.amount)}</td>
+                    <td className="td whitespace-nowrap text-right"><Btn size="sm" variant="ghost" aria-label="Edit expense" onClick={() => setEdit(e)}><Pencil size={14} /></Btn><ConfirmDelete label="Delete" onConfirm={async () => { try { await del('expenses', e.id); notify('Expense deleted') } catch { /* toast */ } }} /></td>
+                  </tr>
+                ))}
+              </Table>
             </div>
           </>
         )}
-        {rows.length > 400 && <p className="px-5 pb-4 text-[12px] text-muted">Showing the latest 400 - narrow the filters to see the rest.</p>}
+        {rows.length > 400 && <p className="px-5 pb-4 text-[12px] text-muted">Showing the latest 400 - narrow the filters to see the rest (selection covers only what's shown).</p>}
       </Card>
       {edit && <EditDialog row={edit} onClose={() => setEdit(null)} />}
+      {bulkEdit && <BulkEditDialog ids={sel.map((e) => e.id)} onClose={() => setBulkEdit(false)} onDone={() => { setBulkEdit(false); setPicked(new Set()) }} />}
     </>
   )
 }

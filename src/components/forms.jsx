@@ -26,22 +26,30 @@ export function PersonSelect({ value, onChange, label = 'Whose', withJoint = tru
   )
 }
 
-export function BankSelect({ value, onChange, label = 'Bank account', required, blank = 'Not specified' }) {
+export function BankSelect({ value, onChange, label = 'Bank account', required, blank = 'Not specified', className, hideLabel }) {
   const { data } = useData()
   const banks = data.bank_accounts.filter((b) => b.active !== false || b.id === value)
-  return (
-    <Field label={label} hint={!banks.length ? 'Add accounts under Banks & cards' : null}>
-      <Select value={value ?? ''} onChange={onChange} required={required}>
-        <option value="">{blank}</option>
-        {banks.map((b) => <option key={b.id} value={b.id}>{bankLabel(b)}</option>)}
-      </Select>
-    </Field>
+  const select = (
+    <Select value={value ?? ''} onChange={onChange} required={required && banks.length > 0} className={className} aria-label={hideLabel ? label : undefined}>
+      <option value="">{required && banks.length ? 'Choose an account…' : blank}</option>
+      {banks.map((b) => <option key={b.id} value={b.id}>{bankLabel(b)}</option>)}
+    </Select>
   )
+  if (hideLabel) return select
+  return <Field label={label} hint={!banks.length ? 'Add accounts under Banks & cards' : null}>{select}</Field>
 }
 
-export function CardSelect({ value, onChange, label = 'Credit card', required, kind, blank }) {
+export function CardSelect({ value, onChange, label = 'Credit card', required, kind, blank, className, hideLabel }) {
   const { data } = useData()
   const cards = data.credit_cards.filter((c) => (c.active !== false || c.id === value) && (!kind || (c.kind || 'credit') === kind))
+  if (hideLabel) {
+    return (
+      <Select value={value ?? ''} onChange={onChange} required={required} className={className} aria-label={label}>
+        <option value="">{blank || 'Choose a card…'}</option>
+        {cards.map((c) => <option key={c.id} value={c.id}>{cardLabel(c)}</option>)}
+      </Select>
+    )
+  }
   return (
     <Field label={label} hint={!cards.length ? `Add a ${kind ? cardKindLabel(kind).toLowerCase() : 'card'} under Banks & cards` : null}>
       <Select value={value ?? ''} onChange={onChange} required={required}>
@@ -99,7 +107,7 @@ export function PaymentFields({ f, set }) {
           {PAYMENT_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
         </Select>
       </Field>
-      {f.payment_method === 'bank_upi' && <BankSelect value={f.bank_account_id} onChange={set('bank_account_id')} label="From account" />}
+      {f.payment_method === 'bank_upi' && <BankSelect value={f.bank_account_id} onChange={set('bank_account_id')} label="From account" required />}
       {f.payment_method in PAYMENT_CARD_KIND && (
         <CardSelect value={f.credit_card_id} onChange={set('credit_card_id')} label={`Which ${cardKindLabel(PAYMENT_CARD_KIND[f.payment_method]).toLowerCase()}`} kind={PAYMENT_CARD_KIND[f.payment_method]} required={PAYMENT_CARD_KIND[f.payment_method] === 'credit'} />
       )}
@@ -109,7 +117,7 @@ export function PaymentFields({ f, set }) {
 
 /** Was it bought through an app/website or in person - and where. Both optional; vendor offers suggestions but takes any text. */
 export function ChannelVendorFields({ f, set, listId = 'vendor-suggestions' }) {
-  const suggestions = VENDOR_SUGGESTIONS[f.channel] || [...VENDOR_SUGGESTIONS.online, ...VENDOR_SUGGESTIONS.physical]
+  const suggestions = VENDOR_SUGGESTIONS[f.channel] || [...new Set([...VENDOR_SUGGESTIONS.online, ...VENDOR_SUGGESTIONS.physical])]
   return (
     <>
       <Field label="Purchase type">

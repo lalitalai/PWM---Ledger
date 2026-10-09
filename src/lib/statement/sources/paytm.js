@@ -50,23 +50,34 @@ export function parsePaytm(pages) {
       if (!date) continue
       const rest = m[3].trim()
       const direction = directionFromVerb(rest) || 'debit'
-      let description = rest.replace(VERB_SPLIT, '').split(/\bTag:/i)[0].replace(/[-\s]+$/, '').trim()
+      let description = rest.replace(VERB_SPLIT, '').split(/\b(?:Tag|Note):/i)[0].replace(/[-\s]+$/, '').trim()
       if (!description) description = direction === 'credit' ? 'Credit' : 'Payment'
       const amount = Number(m[4].replace(/,/g, ''))
       if (!(amount > 0)) continue
 
       // The UPI ref and the "# Tag" category live a line or two below the headline, inside the
       // same block (up to the next headline, or 4 lines, whichever comes first).
-      let ref = null, categoryHint = null
+      // The "Your Account" column prints the bank name after "Tag:" on the headline - long names wrap
+      // ("IDFC FIRST" ... "Bank - 35") - and only the last two digits of the account number, either
+      // as "Bank - 35" further down the block or alone at the end of the next line ("# Food  69").
+      let ref = null, categoryHint = null, last = null, lastLoose = null
+      // (A payment with a note prints "Note: Verified ICICI Bank -" instead of "Tag: ICICI Bank -".)
+      const tagged = rest.match(/\b(?:Tag|Note):\s*(.*)$/i)?.[1] || ''
+      const tagBank = tagged.replace(/^(?:verified\s+)/i, '').replace(/[-\s]+$/, '').trim()
       for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
         const t = lines[j].text || ''
         if (HEADLINE.test((t || '').replace(/\s+/g, ' ').trim())) break
         const rm = t.match(/UPI\s+Ref\s*No[:.]?\s*(\d+)/i)
         if (rm) ref = rm[1]
         const tm = t.match(/#\s*([A-Za-z][A-Za-z &]*)/)
-        if (tm) { const tag = tm[1].trim().toLowerCase(); categoryHint = TAG_MAP[tag] || null }
+        if (tm) { const tag = tm[1].replace(/\s+(bank|mahindra|first)\b.*$/i, '').trim().toLowerCase(); categoryHint = TAG_MAP[tag] || null }
+        const bm = t.match(/\bBank\s*-\s*(\d{2,4})\b/i)
+        if (bm && !last) last = bm[1]
+        const lm = !rm && t.match(/\s(\d{2,4})\s*$/)
+        if (lm && !lastLoose && !/:\d{2}\s*(am|pm)?\s*$/i.test(t)) lastLoose = lm[1]
       }
-      rows.push({ date, description, amount: Math.round(amount * 100) / 100, direction, ref: ref || findRef(text), categoryHint, source: 'Paytm' })
+      const accountHint = tagBank ? { bank: tagBank, last: last || lastLoose } : null
+      rows.push({ date, description, amount: Math.round(amount * 100) / 100, direction, ref: ref || findRef(text), categoryHint, accountHint, source: 'Paytm' })
     }
   }
   return rows

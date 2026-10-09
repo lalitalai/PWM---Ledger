@@ -126,6 +126,28 @@ export function DataProvider({ store, ctx, onExit, children }) {
     })
   }), [store, commit, guard])
 
+  /** Same patch on many rows at once (e.g. "set the account" on a selection of expenses). */
+  const editMany = useCallback((table, ids, patch) => guard(async () => {
+    if (!ids.length) return []
+    const saved = await store.updateMany(table, ids, patch)
+    const byId = new Map(saved.map((r) => [r.id, r]))
+    commit((d) => ({ ...d, [table]: d[table].map((r) => (byId.has(r.id) ? { ...r, ...byId.get(r.id) } : r)) }))
+    if (AUTOMATED.has(table)) await runAuto()
+    return saved
+  }), [store, commit, guard, runAuto])
+
+  const delMany = useCallback((table, ids) => guard(async () => {
+    if (!ids.length) return
+    await store.removeMany(table, ids)
+    const gone = new Set(ids)
+    commit((d) => {
+      const next = { ...d, [table]: d[table].filter((r) => !gone.has(r.id)) }
+      for (const [child, col] of CASCADE[table] || []) next[child] = next[child].filter((r) => !gone.has(r[col]))
+      for (const [child, col] of NULLIFY[table] || []) next[child] = next[child].map((r) => (gone.has(r[col]) ? { ...r, [col]: null } : r))
+      return next
+    })
+  }), [store, commit, guard])
+
   /** "Delete" a missed SIP instalment / EMI payment: keep a 'skipped' tombstone so the automation never re-creates it. */
   const skipRow = useCallback((table, id) => edit(table, id, { status: 'skipped' }), [edit])
   /** Undo a skip: remove the tombstone; the automation posts it again straight away. */
@@ -171,7 +193,7 @@ export function DataProvider({ store, ctx, onExit, children }) {
 
   const value = {
     store, mode: store.mode, ctx, household, settings, me: ctx.me?.member_name, people, owners, today,
-    data, derived, loading, error, busy, reload, add, addMany, edit, del, skipRow, restoreRow, saveSettings, renameHousehold, refreshPrices, notify, toast, setToast, exit: onExit,
+    data, derived, loading, error, busy, reload, add, addMany, edit, editMany, del, delMany, skipRow, restoreRow, saveSettings, renameHousehold, refreshPrices, notify, toast, setToast, exit: onExit,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

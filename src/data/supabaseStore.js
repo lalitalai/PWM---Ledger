@@ -63,6 +63,22 @@ export function supabaseStore(sb) {
       const { error } = await sb.from(table).delete().eq('id', id)
       fail(error, `Deleting from ${table}`)
     },
+    /** Same patch on many rows; ids go in chunks so the request URL stays short. */
+    async updateMany(table, ids, patch) {
+      const out = []
+      for (let i = 0; i < ids.length; i += 150) {
+        const { data, error } = await sb.from(table).update(patch).in('id', ids.slice(i, i + 150)).select()
+        fail(error, `Updating ${table}`)
+        out.push(...(data || []))
+      }
+      return out
+    },
+    async removeMany(table, ids) {
+      for (let i = 0; i < ids.length; i += 150) {
+        const { error } = await sb.from(table).delete().in('id', ids.slice(i, i + 150))
+        fail(error, `Deleting from ${table}`)
+      }
+    },
     async updateHousehold(id, patch) {
       const { data, error } = await sb.from('households').update(patch).eq('id', id).select().single()
       fail(error, 'Updating household')

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Plus, Pencil, Landmark, CreditCard } from 'lucide-react'
 import { useData } from '../ctx/DataContext.jsx'
 import { Btn, Card, ConfirmDelete, Empty, Field, Input, Modal, PageHeader, PersonTag, Select, Segmented, Table, Badge, Progress } from '../components/ui.jsx'
@@ -25,7 +26,7 @@ function BankModal({ row, onClose }) {
           <Select value={f.owner} onChange={set('owner')}>{people.map((p) => <option key={p}>{p}</option>)}<option>Joint</option></Select>
         </Field>
         <Field label="Type"><Select value={f.account_type} onChange={set('account_type')}>{BANK_ACCOUNT_TYPES.map((t) => <option key={t}>{t}</option>)}</Select></Field>
-        <Field label="Last 4 digits" hint="Only the last four - never the full number"><Input inputMode="numeric" maxLength={4} value={f.last4} onChange={set('last4')} /></Field>
+        <Field label="Last 4 digits" hint="Only the last four - also how statement imports recognise this account"><Input inputMode="numeric" maxLength={4} value={f.last4} onChange={set('last4')} /></Field>
         <label className="flex items-center gap-2 text-[13.5px] sm:col-span-2"><input type="checkbox" checked={f.active} onChange={set('active')} className="h-4 w-4 accent-[var(--gold-fill)]" />Active (shown in dropdowns)</label>
       </form>
     </Modal>
@@ -50,7 +51,7 @@ function CardModal({ row, onClose }) {
         <Field label={isCredit ? 'Issuing bank' : 'Issued by'}><Input required value={f.issuing_bank} onChange={set('issuing_bank')} placeholder={isCredit ? 'HDFC Bank' : 'e.g. Employer / Sodexo / Zeta'} /></Field>
         <Field label={isCredit ? 'Credit limit (₹)' : 'Monthly limit (₹)'} hint={isCredit ? null : 'Optional - leave blank if it does not have one'}><Input required={isCredit} type="number" min="0" inputMode="numeric" value={f.credit_limit} onChange={set('credit_limit')} /></Field>
         <Field label="Card holder"><Select value={f.owner ?? ''} onChange={set('owner')}>{people.map((p) => <option key={p}>{p}</option>)}<option>Joint</option></Select></Field>
-        <Field label="Last 4 digits"><Input inputMode="numeric" maxLength={4} value={f.last4} onChange={set('last4')} /></Field>
+        <Field label="Last 4 digits" hint="Lets a statement import map a bill payment to this card"><Input inputMode="numeric" maxLength={4} value={f.last4} onChange={set('last4')} /></Field>
         {isCredit && <Field label="Statement day" hint="Day of month, optional"><Input type="number" min="1" max="31" value={f.billing_day} onChange={set('billing_day')} /></Field>}
         <label className="flex items-center gap-2 self-end pb-2 text-[13.5px]"><input type="checkbox" checked={f.active} onChange={set('active')} className="h-4 w-4 accent-[var(--gold-fill)]" />Active</label>
       </form>
@@ -63,6 +64,8 @@ export default function Masters() {
   const [modal, setModal] = useState(null) // {kind, row}
   const [cardFilter, setCardFilter] = useState('all')
   const month = ym(today)
+  // Money out of each account this month: expenses paid from it, and card bills paid from it.
+  const outThisMonth = (bankId) => data.expenses.filter((e) => e.bank_account_id === bankId && e.payment_method === 'bank_upi' && e.date.slice(0, 7) === month).reduce((s, e) => s + Number(e.amount), 0)
   const usage = (bankId) => ['expenses', 'income', 'sip_master', 'emi_master'].reduce((n, t) => n + data[t].filter((r) => r.bank_account_id === bankId).length, 0)
   const remove = async (table, id, what) => { try { await del(table, id); notify(`${what} removed`) } catch { /* toast */ } }
 
@@ -86,14 +89,15 @@ export default function Masters() {
 
       <Card title="Bank accounts" className="mb-5" action={<Btn size="sm" variant="primary" onClick={() => setModal({ kind: 'bank' })}><Plus size={14} />Add</Btn>} pad>
         {data.bank_accounts.length === 0 ? <Empty title="No bank accounts yet" hint="Add Lalit's, Sujata's and your joint accounts. They appear in the dropdown whenever you pay by Bank Transfer / UPI." action={<Btn variant="primary" onClick={() => setModal({ kind: 'bank' })}><Landmark size={15} />Add first account</Btn>} /> : (
-          <Table head={['Account', 'Bank', 'Holder', 'Type', { label: 'Used in', right: true }, '']}>
+          <Table head={['Account', 'Bank', 'Holder', 'Type', { label: 'Paid out this month', right: true }, { label: 'Used in', right: true }, '']}>
             {data.bank_accounts.map((b) => (
               <tr key={b.id} className={b.active === false ? 'opacity-60' : ''}>
                 <td className="td font-medium">{b.name}{b.last4 && <span className="ml-1.5 text-[12px] text-muted">••{b.last4}</span>}{b.active === false && <Badge className="ml-2">inactive</Badge>}</td>
                 <td className="td text-soft">{b.bank_name}</td>
                 <td className="td"><PersonTag name={b.owner} /></td>
                 <td className="td text-soft">{b.account_type}</td>
-                <td className="td tnum text-right text-soft">{usage(b.id)} entries</td>
+                <td className="td tnum text-right"><Link className="hover:underline" to={`/expenses/list?acct=bank:${b.id}&p=m0`}>{inr(outThisMonth(b.id))}</Link></td>
+                <td className="td tnum text-right text-soft"><Link className="hover:underline" to={`/expenses/list?acct=bank:${b.id}&p=m12`}>{usage(b.id)} entries</Link></td>
                 <td className="td whitespace-nowrap text-right">
                   <Btn size="sm" variant="ghost" onClick={() => setModal({ kind: 'bank', row: b })} aria-label={`Edit ${b.name}`}><Pencil size={14} /></Btn>
                   <ConfirmDelete label="Delete" onConfirm={() => remove('bank_accounts', b.id, 'Account')} />

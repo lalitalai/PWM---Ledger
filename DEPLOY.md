@@ -111,7 +111,7 @@ npm install
 cp .env.example .env.local      # fill the VITE_ values
 npm run dev                     # http://localhost:5173  (no keys = demo mode with sample data)
 npx vercel dev                  # also serves /api/daily locally (needs the server env vars)
-npm test                        # 160 unit tests
+npm test                        # 170 unit tests
 npm run test:db                 # row-level-security tests against a throw-away local Postgres (needs `apt install postgresql`)
 ```
 

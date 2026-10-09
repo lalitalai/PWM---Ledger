@@ -36,5 +36,7 @@ export async function readStatementPdf(file, password, lib) {
     pages.push({ lines: itemsToLines(tc.items) })
   }
   const { rows, source, reason } = detectAndParse(pages)
-  return { rows, pageCount: doc.numPages, source, reason }
+  // First-page text, for working out which of your accounts the statement belongs to (account no.)
+  const headerText = (pages[0]?.lines || []).map((l) => l.text).join('\n')
+  return { rows, pageCount: doc.numPages, source, reason, headerText }
 }

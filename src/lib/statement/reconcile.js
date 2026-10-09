@@ -23,7 +23,7 @@ const WINDOW_DAYS = 5     // a SIP/EMI dated the 5th is often debited on the 6th
 // Order matters: the first pattern that matches decides the kind.
 const KEYWORDS = [
   { kind: 'card_payment', re: /\b(cred\b|cred ?club|cred\.club|cheq\b|credit ?card ?(bill|payment|pmt)|cc ?(bill|payment)|card ?bill|amex|sbi ?card|sbicard)/i,
-    label: 'Credit-card bill payment - the card purchases are the spend, paying the bill is not a new expense' },
+    label: 'Credit-card bill payment - pick the card it pays off: it lowers that card\'s outstanding and is not counted as spending (the card purchases are)' },
   { kind: 'emi', re: /\b(emi|loan ?(recovery|repay\w*|instal\w*)|nach.{0,25}\b(loan|finance|fin)\b|bajaj ?fin|home ?loan)\b/i,
     label: 'Looks like a loan EMI - EMIs are posted automatically from Loans, not entered as expenses' },
   { kind: 'investment', re: /\b(zerodha|groww|upstox|angel ?(one|broking)|kite|5 ?paisa|dhan|paytm ?money|kuvera|et ?money|smallcase|indmoney|scripbox|icici ?direct|hdfc ?sec\w*|kotak ?sec\w*|motilal|sharekhan|nse ?clearing|nsccl|indian ?clearing|iccl|bse ?ltd|mutual ?fund|\bmf\b|nach.{0,25}\bmut|bd .{0,12}mf|cams|kfin\w*|sip|nps|apy|atal ?pension|ppf|sukanya)\b/i,
