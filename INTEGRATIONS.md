@@ -98,16 +98,31 @@ Available from both sides: on the SIP (goal drop-down) and in the goal (Goals �
 
 ---
 
+## 3b. Statement upload for expenses
+
+**Spend → Import** reads a Google Pay or Paytm transaction-history PDF, a bank statement PDF, or a bank/UPI **CSV** export, and turns it into a reviewable table of candidate expenses - nothing is saved until you tick rows and press Import. Like the CAS upload, everything happens **inside your browser** with PDF.js; the file is never uploaded anywhere.
+
+- **How it recognises a file.** There is no single "universal" layout - every bank and app prints dates, amounts and columns differently - so this is a short chain of purpose-built readers, tried in order, each one only claiming a file when it is confident: Google Pay's dated blocks, Paytm's blocks (including its own `# Tag` categories, mapped to this app's categories), then a bank-agnostic ledger-table reader, then a plain CSV reader, then a generic best-effort line scanner as the last resort. The app tells you which one matched ("Detected as: Paytm", etc.) so you know how much to trust it.
+- **The bank-ledger reader doesn't need to recognise your bank.** Classic Indian bank statements print a Withdrawal/Deposit or Debit/Credit column pair (plus a running Balance); some print the column headers as real text, some (seen in practice: an SBI export) draw them as a graphic with no text at all. Rather than hard-coding column names, it looks at where each row's one real amount actually sits, finds the gap that splits all the amounts on the page into a left group and a right group, and calls the left group debit, the right credit - the universal convention every Indian statement follows. A statement whose amounts don't split that way isn't this layout, and it is left to the generic fallback instead of a wrong guess. It also recognises the simpler single-Amount-column-with-`(Dr)`/`(Cr)`-suffix style some banks (e.g. Union Bank) use.
+- **Password-protected PDFs work.** Bank/UPI statements are routinely locked with your PAN, account number or date of birth; the app asks for the password, uses it once in memory (via PDF.js) and never stores it - the same flow the CAS import already uses.
+- **CSV vs PDF.** Prefer a CSV export when your bank or app offers one - its columns are unambiguous, so it is read exactly, no guessing. A PDF is still the common case (most apps only offer a PDF), and is fully supported; recognition there is always best-effort, which is why every row is shown for review before anything is saved.
+- **Duplicate detection across statements.** The same transaction often shows up twice - once in a UPI app's history and again as a line in the underlying bank statement. Every parsed row that carries a UPI reference / transaction ID is checked against already-saved expenses (the ref is tucked onto the saved expense's own note, e.g. "Hariom sweets · ref:316011459239" - no schema change needed); a likely repeat is shown with a "maybe duplicate" badge and left unticked. This only catches a duplicate against **expenses already in the app** - uploading two overlapping statements in the same sitting still needs you to glance down the list, since recognising it is best-effort, not a guarantee.
+- **Money that isn't spending is caught too, not just repeated statements.** Before the review table appears, every debit is reconciled against what the app already tracks: an auto-posted **SIP instalment** or **EMI** with the same amount within 5 days (a SIP dated the 5th is often debited on the 6th-8th), an **additional investment** you typed in under Invest, or an **expense you entered by hand** with the same amount on the same day. A match is shown as "already tracked · SIP" (etc.) with the exact SIP/loan/holding it matched, and left unticked. Each recorded item can absorb only one statement line, so two ₹4,000 SIPs on the same day match two debits, not one. Even when nothing is recorded yet, a debit whose description says it is a broker/mutual-fund/NPS/APY/PPF payment (Zerodha, Groww, NSE Clearing, NACH-MUT…), a loan EMI, a credit-card bill payment (CRED, CheQ, card bill) or a transfer to a household member is unticked with the reason shown, and points you to where it belongs instead (Invest → Add / withdraw for an untracked top-up). Employer-credited SIPs (EPF/NPS) and credit-card EMIs are never matched against a bank debit, because they never appear on one. Banks shorten names ("suj kothav"), so the review screen has a **"Your names as banks print them"** box - aliases added there are saved in household settings and also used for every future import.
+- **A CAS (holdings) statement is recognised and declined**, not misparsed - if you drop a CDSL/NSDL/CAMS/KFintech CAS PDF here by mistake, the app tells you to use Invest → Import CAS instead rather than inventing nonsense "expense" rows from it.
+- **What hasn't been tested on real files from every issuer.** The three samples this was built and verified against (Google Pay, Paytm, and ICICI/Kotak/SBI/Union Bank statements) all came back with amounts matching the bank's own printed totals, but a bank or app never seen before may still only partially match, or fall through to the generic reader - which is exactly why every row is reviewable, never auto-imported.
+
+---
+
 ## 4. What stays manual, and why
 
 | Item | Why | Suggested rhythm |
 |---|---|---|
 | PPF / EPF / NPS / FD balances | No public API; India's Account Aggregator framework is open only to registered institutions, not to a personal app | when the passbook or e-passbook updates (quarterly is plenty) |
 | Salary and other income | Logged by hand; the **Repeat last month's salary** button on Income makes it one tap | monthly |
-| Expenses | Entered by hand (payment method, card, bank); bank SMS/statement parsing is not included | as they happen |
+| Expenses | A Paytm/GPay/bank statement PDF or CSV can be bulk-imported (see #3b above) and reviewed before saving; there's no automatic bank-SMS parsing | as they happen, or in a batch from a statement |
 | Additional investments (beyond SIPs) | By design (#3): only extras are typed in | as they happen |
 | Real estate / vehicles | No feed | yearly |
 
 ## 5. Ideas for later (not built)
 
-Bank-statement CSV/PDF import for expenses; an e-mail/SMS parser for card transactions; automatic monthly CAS via e-mail; push notifications for upcoming EMIs; a second price provider as automatic fallback for shares.
+An e-mail/SMS parser for card transactions (so nothing needs a statement upload at all); automatic monthly CAS via e-mail; push notifications for upcoming EMIs; a second price provider as automatic fallback for shares.

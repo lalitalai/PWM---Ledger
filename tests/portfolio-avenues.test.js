@@ -56,6 +56,21 @@ describe('derived holdings', () => {
     expect(assetClassOf({ asset_type: 'mutual_fund', category: 'Small Cap' })).toBe('Equity')
     expect(assetClassOf({ asset_type: 'ppf' })).toBe('Debt')
   })
+  it('NPS and Real Estate get their own named class instead of falling into a generic "Other"', () => {
+    expect(assetClassOf({ asset_type: 'nps' })).toBe('NPS')
+    expect(assetClassOf({ asset_type: 'real_estate' })).toBe('Real Estate')
+    expect(assetClassOf({ asset_type: 'other' })).toBe('Other')
+  })
+  it('goal corpus uses a holding\'s net value (after any loan it secures), not its gross value', () => {
+    const flat = { id: 'flat', value: 5000000, netValue: 2000000, goal_id: 'g-house' }
+    const r = goalCorpus({ id: 'g-house', manual_amount: 0 }, [flat], [])
+    expect(r.invested).toBe(2000000)
+  })
+  it('falls back to gross value when a holding carries no netValue (e.g. untagged, or derived without buildDerived)', () => {
+    const fund = { id: 'f', value: 90000, goal_id: 'g-house' }
+    const r = goalCorpus({ id: 'g-house', manual_amount: 0 }, [fund], [])
+    expect(r.invested).toBe(90000)
+  })
   it('goal corpus unions direct tags and SIP-linked holdings without double counting', () => {
     const a = { ...mf, id: 'a', goal_id: 'g1' }, b = { ...mf, id: 'b' }, c = { ...mf, id: 'c', goal_id: 'g2' }
     const derived = deriveHoldings([a, b, c], {})

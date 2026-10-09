@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Pencil, Plus, Repeat, Undo2 } from 'lucide-r
 import { useData } from '../../ctx/DataContext.jsx'
 import { Badge, Btn, Card, ConfirmDelete, Empty, Field, Input, Modal, PersonTag, Select, Stat, StatStrip, Textarea, cx } from '../../components/ui.jsx'
 import { BankSelect, GoalSelect, PersonSelect, useForm, numOrNull, nz } from '../../components/forms.jsx'
-import { FUND_CATEGORIES, isUnitBased } from '../../lib/constants.js'
+import { FUND_CATEGORIES, FUNDED_BY, fundedByLabel, isUnitBased } from '../../lib/constants.js'
 import { inr, inrDecimal, units as fmtUnits } from '../../lib/format.js'
 import { dateLabel, dateShort, dayBefore, monthlyDates, ordinal } from '../../lib/dates.js'
 import { monthlySipTotal, upcomingSips } from '../../lib/schedule.js'
@@ -12,7 +12,7 @@ export function SipModal({ row, onClose, defaults = {} }) {
   const { add, edit, data, today, me, people, notify } = useData()
   const [f, set] = useForm({
     fund_name: row?.fund_name || defaults.fund_name || '', category: row?.category || defaults.category || '', amount: row?.amount ?? defaults.amount ?? '', sip_day: row?.sip_day ?? defaults.sip_day ?? '',
-    start_date: row?.start_date || today, end_date: row?.end_date || '', person: row?.person || me || people[0] || '', bank_account_id: row?.bank_account_id || '', goal_id: row?.goal_id || '',
+    start_date: row?.start_date || today, end_date: row?.end_date || '', person: row?.person || me || people[0] || '', bank_account_id: row?.bank_account_id || '', funded_by: row?.funded_by || 'self', goal_id: row?.goal_id || '',
     holding_id: row ? row.holding_id || '' : defaults.holding_id || '__new', isin: row?.isin || defaults.isin || '', amfi_code: row?.amfi_code || '', notes: row?.notes || '', active: row?.active ?? true,
   })
   const funds = data.holdings.filter((h) => h.active !== false && isUnitBased(h.asset_type))
@@ -41,7 +41,7 @@ export function SipModal({ row, onClose, defaults = {} }) {
       }
       const body = {
         fund_name: f.fund_name.trim(), category: nz(f.category), amount: numOrNull(f.amount), sip_day: day, start_date: f.start_date, end_date: nz(f.end_date), person: f.person,
-        bank_account_id: f.bank_account_id || null, goal_id: f.goal_id || null, holding_id: holdingId, isin: nz(f.isin.trim().toUpperCase()), amfi_code: nz(String(f.amfi_code).trim()), notes: nz(f.notes.trim()), active: f.active,
+        bank_account_id: f.funded_by === 'employer' ? null : f.bank_account_id || null, funded_by: f.funded_by, goal_id: f.goal_id || null, holding_id: holdingId, isin: nz(f.isin.trim().toUpperCase()), amfi_code: nz(String(f.amfi_code).trim()), notes: nz(f.notes.trim()), active: f.active,
       }
       if (row) await edit('sip_master', row.id, body); else await add('sip_master', body)
       notify(row ? 'SIP updated' : backfill.length > 1 ? `SIP added - ${backfill.length} instalments posted up to today` : 'SIP added - it will post automatically on its date')
@@ -59,7 +59,10 @@ export function SipModal({ row, onClose, defaults = {} }) {
         <Field label="Started on" hint={row ? 'Moving this earlier posts the missing months' : 'Pick today unless the SIP is already running'}><Input required type="date" value={f.start_date} onChange={set('start_date')} /></Field>
         <Field label="Ends on (optional)"><Input type="date" value={f.end_date} onChange={set('end_date')} /></Field>
         <PersonSelect value={f.person} onChange={set('person')} label="Whose SIP" />
-        <BankSelect value={f.bank_account_id} onChange={set('bank_account_id')} label="Debited from" />
+        <Field label="Funded by" hint={f.funded_by === 'employer' ? 'Never counted as cash outflow, but still counts as investment each month' : undefined}>
+          <Select value={f.funded_by} onChange={set('funded_by')}>{FUNDED_BY.map((fb) => <option key={fb.id} value={fb.id}>{fb.label}</option>)}</Select>
+        </Field>
+        {f.funded_by !== 'employer' && <BankSelect value={f.bank_account_id} onChange={set('bank_account_id')} label="Debited from" />}
         <GoalSelect value={f.goal_id} onChange={set('goal_id')} label="Goal this SIP is for" />
         <Field label="Investment it feeds" hint="Units and value roll up here">
           <Select value={f.holding_id} onChange={pick}>
@@ -163,7 +166,7 @@ export default function Sips() {
                       <div className="min-w-0">
                         <div className="font-medium leading-snug">{s.fund_name}</div>
                         <div className="text-[12px] text-muted">{s.category || 'No category'}{bank ? ` · ${bank.name}` : ''}</div>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5"><Badge tone={tone}>{label}</Badge><PersonTag name={s.person} /></div>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5"><Badge tone={tone}>{label}</Badge><PersonTag name={s.person} />{s.funded_by === 'employer' && <Badge tone="gold">{fundedByLabel('employer').split('(')[0].trim()}</Badge>}</div>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-9 md:pl-0">

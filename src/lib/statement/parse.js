@@ -10,9 +10,11 @@
 const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 }
 const MONTH_RE = '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*'
 const DATE_PATTERNS = [
-  { re: /\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/, fmt: 'dmy' },
+  { re: /\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})\b/, fmt: 'dmy' },
   { re: /\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b/, fmt: 'ymd' },
-  { re: new RegExp(`\\b(\\d{1,2})\\s+(${MONTH_RE})'?\\s*(\\d{2,4})\\b`, 'i'), fmt: 'dmonthy' },
+  // "5 Sep 2026", "5 Sep, 2026", "5 Sep'26" - a comma or apostrophe may sit between the month and
+  // the year (Google Pay prints the comma form; some banks print the apostrophe form).
+  { re: new RegExp(`\\b(\\d{1,2})\\s+(${MONTH_RE})[,']?\\s*(\\d{2,4})\\b`, 'i'), fmt: 'dmonthy' },
 ]
 // Reference/UPI/order numbers look just like amounts (long digit runs) - stripped before scanning
 // so they are never mistaken for the transaction amount.

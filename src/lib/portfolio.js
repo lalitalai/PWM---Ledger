@@ -87,7 +87,9 @@ export function goalHoldings(goalId, derived, sips) {
 }
 export function goalCorpus(goal, derived, sips) {
   const hs = goalHoldings(goal.id, derived, sips)
-  return { holdings: hs, invested: hs.reduce((t, h) => t + h.value, 0) + num(goal.manual_amount) }
+  // Use net value (gross minus any loan it secures, e.g. Real Estate against a home loan) so a
+  // mortgaged asset only counts the equity actually available toward the goal, not its gross price.
+  return { holdings: hs, invested: hs.reduce((t, h) => t + (h.netValue ?? h.value), 0) + num(goal.manual_amount) }
 }
 export const goalMonthlySip = (goalId, sips) => sips.filter((s) => s.goal_id === goalId && s.active !== false).reduce((t, s) => t + num(s.amount), 0)
 

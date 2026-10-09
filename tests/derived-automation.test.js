@@ -13,7 +13,7 @@ describe('automation with the demo household', () => {
   it('posts every due SIP installment and EMI once, and nothing twice', async () => {
     const { s, data } = await load()
     const first = await runAutomation(s, data, today)
-    expect(first.sip.length).toBeGreaterThan(20)         // 5 SIPs x ~5-6 months
+    expect(first.sip.length).toBeGreaterThan(24)         // 6 SIPs x ~5-6 months
     expect(first.emi.length).toBeGreaterThan(8)          // 3 loans x ~3-4 months
     const again = await runAutomation(s, await s.loadAll(), today)
     expect(again.sip.length).toBe(0); expect(again.emi.length).toBe(0)
@@ -75,8 +75,9 @@ describe('derived dashboard numbers', () => {
     const d = await s.loadAll()
     const cf = monthCashflow(d, '2026-08')
     expect(cf.income).toBeGreaterThan(200000)
-    expect(cf.sip).toBe(33000)
-    expect(cf.leftover).toBeCloseTo(cf.income - cf.expenses - cf.emi - cf.invested, 6)
+    expect(cf.sip).toBe(39000) // 33000 self-funded + 6000 employer-credited NPS
+    expect(cf.sipEmployer).toBe(6000)
+    expect(cf.leftover).toBeCloseTo(cf.income - cf.expenses - cf.emi - cf.investedSelf, 6)
   })
   it('net worth = assets - loans and portfolio value comes from units x price', async () => {
     const { s, data } = await load()

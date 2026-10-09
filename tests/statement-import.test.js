@@ -45,6 +45,16 @@ describe('parseStatementLines', () => {
     const rows = parseStatementLines([page('5 Sep 2026  Swiggy order  650.00 debited')])
     expect(rows[0].date).toBe('2026-09-05')
   })
+
+  it('parses a month-name date with a comma before the year (Google Pay style)', () => {
+    const rows = parseStatementLines([page('5 Sep, 2026  Swiggy order  650.00 debited')])
+    expect(rows[0].date).toBe('2026-09-05')
+  })
+
+  it('parses a dot-separated date (common on Indian bank ledger tables)', () => {
+    const rows = parseStatementLines([page('01.09.2026  Grocery run  1200.00')])
+    expect(rows[0].date).toBe('2026-09-01')
+  })
 })
 
 describe('guessCategory', () => {

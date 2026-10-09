@@ -51,7 +51,11 @@ export function seedDemo(today) {
     hold({ id: 'h-infy', name: 'Infosys Ltd', asset_type: 'equity', category: null, person: 'Lalit', units: 25, invested_amount: 32000, price: 1540, ticker: 'INFY.NS' }),
     hold({ id: 'h-ppf', name: 'PPF - State Bank of India', asset_type: 'ppf', category: 'PPF', person: 'Lalit', units: null, invested_amount: 360000, current_value: 412000, price: null, price_date: null }),
     hold({ id: 'h-epf', name: 'EPF (Lalit)', asset_type: 'epf', category: 'EPF', person: 'Lalit', units: null, invested_amount: 520000, current_value: 655000, price: null, price_date: null }),
-  ]).map((h) => ({ ...h, goal_id: null }))
+    hold({ id: 'h-nps', name: 'NPS Tier I (Lalit)', asset_type: 'nps', category: 'NPS', person: 'Lalit', units: null, invested_amount: 180000, current_value: 205000, price: null, price_date: null }),
+    // Secures the home loan below - tagged to the house goal, so the goal correctly counts only
+    // the equity in it (value minus what is still owed), not the flat's full market price.
+    hold({ id: 'h-flat', name: '2BHK Flat - Whitefield', asset_type: 'real_estate', category: null, person: 'Joint', units: null, invested_amount: 4500000, current_value: 6000000, price: null, price_date: null, secures_loan_id: 'l-home' }),
+  ]).map((h) => ({ ...h, goal_id: h.id === 'h-flat' ? 'g-house' : null }))
 
   // ---- SIP master (start dates 5 months back so history fills automatically) ---------------------------
   const sipStart = (day) => dateInMonth(mAgo(5), day)
@@ -62,6 +66,9 @@ export function seedDemo(today) {
     sip({ id: 's-small', fund_name: 'Nippon India Small Cap Fund - Direct Growth', category: 'Small Cap', amount: 3000, sip_day: 10, person: 'Sujata', bank_account_id: 'bk-sbi', goal_id: 'g-edu', holding_id: 'h-small' }),
     sip({ id: 's-bal', fund_name: 'HDFC Balanced Advantage Fund - Direct Growth', category: 'Balanced Advantage', amount: 7000, sip_day: 12, person: 'Sujata', bank_account_id: 'bk-sbi', goal_id: 'g-house', holding_id: 'h-bal' }),
     sip({ id: 's-liq', fund_name: 'ICICI Prudential Liquid Fund - Direct Growth', category: 'Liquid', amount: 8000, sip_day: 1, person: 'Joint', bank_account_id: 'bk-icici', goal_id: 'g-emerg', holding_id: 'h-liq' }),
+    // Credited straight from the employer every month - never cash Lalit has in hand, so it must
+    // count as investment without ever being subtracted as a monthly outflow.
+    sip({ id: 's-nps', fund_name: 'NPS Tier I (employer contribution)', category: 'NPS', amount: 6000, sip_day: 1, person: 'Lalit', bank_account_id: null, funded_by: 'employer', goal_id: null, holding_id: 'h-nps' }),
   ])
   // one lump-sum topped up last month
   const txns = T([{ id: 'tx-1', date: dateInMonth(mAgo(1), 18), holding_id: 'h-nifty', kind: 'additional', amount: 25000, units: null, nav: null, person: 'Lalit', bank_account_id: 'bk-hdfc', note: 'Bonus top-up' }])

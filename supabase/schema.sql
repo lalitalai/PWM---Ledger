@@ -369,6 +369,19 @@ alter table public.expenses add column if not exists vendor text;
 alter table public.expenses add column if not exists settles_card_id uuid references public.credit_cards(id) on delete set null;
 create index if not exists expenses_settles_card_idx on public.expenses(settles_card_id) where settles_card_id is not null;
 
+-- =====================================================================================
+--  MIGRATION (Oct 2026) - additive only, safe to run on an already-live database.
+--  New: an asset can be tagged to the loan it secures (netted for goal progress, e.g. a
+--  house against its home loan); a SIP can be marked employer-funded (EPF/NPS contributions
+--  credited by the company - counted as investment, never as a cash outflow).
+-- =====================================================================================
+alter table public.holdings add column if not exists secures_loan_id uuid references public.emi_master(id) on delete set null;
+create index if not exists holdings_secures_loan_idx on public.holdings(secures_loan_id) where secures_loan_id is not null;
+
+alter table public.sip_master add column if not exists funded_by text not null default 'self';
+alter table public.sip_master drop constraint if exists sip_master_funded_by_check;
+alter table public.sip_master add constraint sip_master_funded_by_check check (funded_by in ('self','employer'));
+
 -- Nothing is readable without signing in.
 revoke all on all tables in schema public from anon;
 revoke execute on function public.create_household(text, text[], text) from public, anon;

@@ -52,6 +52,19 @@ export function CardSelect({ value, onChange, label = 'Credit card', required, k
   )
 }
 
+export function LoanSelect({ value, onChange, label = 'Secures a loan (optional)', hint = 'Nets this asset against that loan\'s outstanding balance for goal progress' }) {
+  const { data } = useData()
+  const loans = data.emi_master.filter((l) => l.active !== false || l.id === value)
+  return (
+    <Field label={label} hint={loans.length ? hint : 'Add a loan under Loans to link one'}>
+      <Select value={value ?? ''} onChange={onChange}>
+        <option value="">Not linked to a loan</option>
+        {loans.map((l) => <option key={l.id} value={l.id}>{l.lender || l.loan_type}{l.person ? ` (${l.person})` : ''}</option>)}
+      </Select>
+    </Field>
+  )
+}
+
 export function GoalSelect({ value, onChange, label = 'Goal (optional)' }) {
   const { data } = useData()
   return (

@@ -9,7 +9,7 @@ import { cx } from './ui.jsx'
 
 export const slot = (i) => `var(--s${(i % 8) + 1})`
 // Colour follows the entity, never the rank: an asset class keeps its colour on every screen.
-export const CLASS_COLOR = { Equity: 'var(--s1)', Debt: 'var(--s3)', Hybrid: 'var(--s7)', Gold: 'var(--s4)', Other: 'var(--s5)' }
+export const CLASS_COLOR = { Equity: 'var(--s1)', Debt: 'var(--s3)', Hybrid: 'var(--s7)', Gold: 'var(--s4)', Other: 'var(--s5)', NPS: 'var(--s2)', 'Real Estate': 'var(--s6)' }
 
 export function Legend({ items, className }) {
   return (

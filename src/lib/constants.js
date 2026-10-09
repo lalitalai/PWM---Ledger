@@ -46,6 +46,15 @@ export const VENDOR_SUGGESTIONS = {
 
 export const INCOME_SOURCES = ['Salary', 'Bonus', 'Freelance', 'Business', 'Rent', 'Interest', 'Dividend', 'Capital Gains', 'Refund', 'Gift', 'Other']
 
+// Who actually funds a SIP instalment. 'employer' is for amounts a company credits directly
+// (EPF/NPS employer contribution) - real money growing the portfolio, but never cash the person
+// had in hand, so it must count as investment without ever being subtracted as a monthly outflow.
+export const FUNDED_BY = [
+  { id: 'self', label: 'From my account (normal SIP)' },
+  { id: 'employer', label: 'Employer-credited (EPF/NPS contribution, etc.)' },
+]
+export const fundedByLabel = (id) => FUNDED_BY.find((f) => f.id === id)?.label || id
+
 export const ASSET_TYPES = [
   { id: 'mutual_fund', label: 'Mutual Fund', unitBased: true },
   { id: 'equity', label: 'Stock', unitBased: true },
@@ -77,8 +86,9 @@ export function assetClassOf(h) {
   if (t === 'gold') return 'Gold'
   if (t === 'equity') return 'Equity'
   if (['ppf', 'epf', 'fd'].includes(t)) return 'Debt'
-  if (t === 'nps') return 'Hybrid'
-  if (t === 'real_estate' || t === 'other') return 'Other'
+  if (t === 'nps') return 'NPS'
+  if (t === 'real_estate') return 'Real Estate'
+  if (t === 'other') return 'Other'
   const c = (h.category || h.name || '').toLowerCase()
   if (/gold/.test(c)) return 'Gold'
   if (/liquid|overnight|ultra|short dur|corporate bond|banking|psu|gilt|money market|debt|bond|floater|fmp/.test(c)) return 'Debt'

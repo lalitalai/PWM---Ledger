@@ -19,6 +19,7 @@ const NULLIFY = {
   credit_cards: [['expenses', 'credit_card_id'], ['expenses', 'settles_card_id'], ['emi_master', 'credit_card_id']],
   goals: [['holdings', 'goal_id'], ['sip_master', 'goal_id']],
   holdings: [['sip_master', 'holding_id']],
+  emi_master: [['holdings', 'secures_loan_id']],
 }
 // tables whose changes can create new automatic rows
 const AUTOMATED = new Set(['sip_master', 'emi_master', 'emi_prepayments', 'holdings'])

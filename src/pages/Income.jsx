@@ -31,7 +31,7 @@ function IncomeModal({ row, onClose }) {
         <Field label="Amount (₹)"><Input required autoFocus type="number" min="0" step="0.01" inputMode="decimal" value={f.amount} onChange={set('amount')} className="text-[18px] font-semibold" /></Field>
         <Field label="Date received"><Input required type="date" value={f.date} onChange={set('date')} /></Field>
         <PersonSelect label="Received by" value={f.person} onChange={onPerson} withJoint />
-        <Field label="Source"><Input required list="income-sources" value={f.source} onChange={set('source')} /><datalist id="income-sources">{sources.map((s) => <option key={s} value={s} />)}</datalist></Field>
+        <Field label="Source"><Select value={f.source} onChange={set('source')}>{sources.map((s) => <option key={s}>{s}</option>)}</Select></Field>
         <BankSelect value={f.bank_account_id} onChange={set('bank_account_id')} label="Credited to" />
         <Field label="Note"><Input value={f.note} onChange={set('note')} placeholder="optional" /></Field>
       </form>

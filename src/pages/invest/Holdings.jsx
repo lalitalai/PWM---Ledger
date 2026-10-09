@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Plus, Pencil, Search } from 'lucide-react'
 import { useData } from '../../ctx/DataContext.jsx'
 import { Badge, Btn, Card, ConfirmDelete, Empty, Field, Input, Modal, PersonTag, Select, Table, Textarea } from '../../components/ui.jsx'
-import { GoalSelect, PersonSelect, useForm, numOrNull, nz } from '../../components/forms.jsx'
+import { GoalSelect, LoanSelect, PersonSelect, useForm, numOrNull, nz } from '../../components/forms.jsx'
 import { ASSET_TYPES, FUND_CATEGORIES, assetLabel, isUnitBased } from '../../lib/constants.js'
 import { inr, inrDecimal, pct, units as fmtUnits } from '../../lib/format.js'
 import { dateLabel, dateShort } from '../../lib/dates.js'
@@ -14,7 +14,7 @@ export function HoldingModal({ row, onClose, onSaved, defaults = {} }) {
     asset_type: row?.asset_type || defaults.asset_type || 'mutual_fund', name: row?.name || defaults.name || '', category: row?.category || defaults.category || '',
     person: row?.person || me || people[0] || '', isin: row?.isin || '', amfi_code: row?.amfi_code || '', ticker: row?.ticker || '', folio_no: row?.folio_no || '',
     units: row?.units ?? '', invested_amount: row?.invested_amount ?? '', price: row?.price ?? '', current_value: row?.current_value ?? '',
-    baseline_date: row?.baseline_date || today, goal_id: row?.goal_id || '', notes: row?.notes || '', active: row?.active ?? true, cost_known: row?.cost_known ?? true,
+    baseline_date: row?.baseline_date || today, goal_id: row?.goal_id || '', secures_loan_id: row?.secures_loan_id || '', notes: row?.notes || '', active: row?.active ?? true, cost_known: row?.cost_known ?? true,
   })
   const unit = isUnitBased(f.asset_type)
   const fund = f.asset_type === 'mutual_fund' || f.asset_type === 'etf'
@@ -25,7 +25,7 @@ export function HoldingModal({ row, onClose, onSaved, defaults = {} }) {
       asset_type: f.asset_type, name: f.name.trim(), category: nz(f.category), person: f.person, isin: nz(f.isin.trim().toUpperCase()), amfi_code: nz(String(f.amfi_code).trim()),
       ticker: nz(f.ticker.trim()), folio_no: nz(f.folio_no.trim()), units: unit ? numOrNull(f.units) ?? 0 : null, invested_amount: numOrNull(f.invested_amount) ?? 0,
       price: unit ? numOrNull(f.price) : null, price_date: unit && numOrNull(f.price) ? row?.price_date && Number(row.price) === Number(f.price) ? row.price_date : today : null,
-      current_value: unit ? null : numOrNull(f.current_value), baseline_date: f.baseline_date, goal_id: f.goal_id || null, notes: nz(f.notes.trim()), active: f.active, cost_known: f.cost_known,
+      current_value: unit ? null : numOrNull(f.current_value), baseline_date: f.baseline_date, goal_id: f.goal_id || null, secures_loan_id: f.secures_loan_id || null, notes: nz(f.notes.trim()), active: f.active, cost_known: f.cost_known,
       source: row?.source || 'manual',
     }
     try { const saved = row ? await edit('holdings', row.id, body) : await add('holdings', body); notify(row ? 'Investment updated' : 'Investment added'); onSaved?.(saved); onClose() } catch { /* toast */ }
@@ -54,6 +54,7 @@ export function HoldingModal({ row, onClose, onSaved, defaults = {} }) {
           </div>
         </div>
         <GoalSelect value={f.goal_id} onChange={set('goal_id')} label="Count toward goal" />
+        <LoanSelect value={f.secures_loan_id} onChange={set('secures_loan_id')} />
         <label className="flex items-center gap-2 self-end pb-2 text-[13.5px]"><input type="checkbox" checked={f.active} onChange={set('active')} className="h-4 w-4 accent-[var(--gold-fill)]" />Active (uncheck when sold)</label>
         <Field label="Notes" className="sm:col-span-2"><Textarea value={f.notes} onChange={set('notes')} /></Field>
       </form>
@@ -103,6 +104,7 @@ export default function Holdings() {
                   <div className="shrink-0 text-right">
                     <div className="tnum text-[14px] font-semibold">{inr(h.value)}</div>
                     <div className={`tnum text-[12px] ${h.gain == null ? 'text-muted' : h.gain >= 0 ? 'text-sage' : 'text-rust'}`}>{h.gain == null ? 'cost n/a' : `${inr(h.gain, { sign: true })} · ${pct(h.gainPct)}`}</div>
+                    {h.loanBalance > 0 && <div className="tnum text-[11.5px] text-muted">net {inr(h.netValue)} after loan</div>}
                     <div className="-mr-2 mt-0.5 flex justify-end"><Btn size="sm" variant="ghost" aria-label={`Edit ${h.name}`} onClick={() => setModal({ row: data.holdings.find((x) => x.id === h.id) })}><Pencil size={14} /></Btn>
                       <ConfirmDelete onConfirm={async () => { try { await del('holdings', h.id); notify('Investment deleted') } catch { /* toast */ } }} /></div>
                   </div>
@@ -129,7 +131,7 @@ export default function Holdings() {
                   <td className="td"><PersonTag name={h.person} /></td>
                   <td className="td tnum text-right text-soft">{isUnitBased(h.asset_type) ? fmtUnits(h.units) : '—'}</td>
                   <td className="td tnum whitespace-nowrap text-right text-soft">{h.price ? <>{inrDecimal(h.price)}<div className="text-[11px] text-muted">{dateShort(h.price_date)}</div></> : '—'}</td>
-                  <td className="td tnum text-right font-medium">{inr(h.value)}</td>
+                  <td className="td tnum text-right font-medium">{inr(h.value)}{h.loanBalance > 0 && <div className="text-[11px] font-normal text-muted">net {inr(h.netValue)}</div>}</td>
                   <td className={`td tnum whitespace-nowrap text-right ${h.gain == null ? 'text-muted' : h.gain >= 0 ? 'text-sage' : 'text-rust'}`}>
                     {h.gain == null ? <span title="Cost is not in the demat statement. Edit the holding to add it.">cost n/a</span> : <>{inr(h.gain, { sign: true })}<div className="text-[11px]">{pct(h.gainPct)}</div></>}
                   </td>

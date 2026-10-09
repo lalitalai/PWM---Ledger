@@ -1,6 +1,6 @@
 // Read a Paytm / GPay / bank statement PDF in the browser (nothing is uploaded anywhere).
 import { itemsToLines } from '../cas/textlines.js'
-import { parseStatementLines } from './parse.js'
+import { detectAndParse } from './detect.js'
 
 let libPromise
 async function loadPdfjs() {
@@ -35,6 +35,6 @@ export async function readStatementPdf(file, password, lib) {
     const tc = await page.getTextContent()
     pages.push({ lines: itemsToLines(tc.items) })
   }
-  const rows = parseStatementLines(pages)
-  return { rows, pageCount: doc.numPages }
+  const { rows, source, reason } = detectAndParse(pages)
+  return { rows, pageCount: doc.numPages, source, reason }
 }

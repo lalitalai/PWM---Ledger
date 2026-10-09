@@ -3,6 +3,7 @@ import { useData } from '../../ctx/DataContext.jsx'
 import { Btn, Card, Stat, StatStrip } from '../../components/ui.jsx'
 import { CLASS_COLOR, ChartCard, HBars, ShareBar, TimeChart, slot } from '../../components/charts.jsx'
 import { groupSum, monthlyInvestmentSeries, snapshotOf } from '../../lib/portfolio.js'
+import { assetLabel } from '../../lib/constants.js'
 import { monthlySipTotal } from '../../lib/schedule.js'
 import { inr, inrCompact, pct } from '../../lib/format.js'
 import { dateLabel, dateShort, lastMonths, monthLabel, monthShort, ym } from '../../lib/dates.js'
@@ -12,7 +13,10 @@ export default function InvestDashboard() {
   const { holdings, totals } = derived
   const byClass = groupSum(holdings, (h) => h.assetClass)
   const byPerson = groupSum(holdings, (h) => h.person || 'Unassigned')
-  const byCat = groupSum(holdings.filter((h) => h.asset_type !== 'equity'), (h) => h.category || 'Uncategorised').slice(0, 8)
+  // Funds/ETFs/gold carry a free-text category; everything else (NPS, Real Estate, PPF, EPF, FD,
+  // Other) has no category field at all, so it falls back to its own asset-type name rather than
+  // a generic "Uncategorised" bucket that used to swallow them all together.
+  const byCat = groupSum(holdings.filter((h) => h.asset_type !== 'equity'), (h) => h.category || assetLabel(h.asset_type)).slice(0, 8)
   const top = [...holdings].sort((a, b) => b.value - a.value).slice(0, 6).map((h) => ({ name: h.name, value: h.value, sub: h.person }))
   const months = lastMonths(ym(today), 12)
   const flow = monthlyInvestmentSeries(months, data.sip_installments, data.investment_txns).map((m) => ({ label: monthShort(m.month), month: m.month, SIPs: Math.round(m.sip), 'Additional': Math.round(m.additional) }))
