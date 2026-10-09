@@ -14,7 +14,7 @@ A private household wealth manager for two people (built for Lalit & Sujata; nam
 | Area | What it does |
 |---|---|
 | **Home** | Net worth (investments − loans), this month's cash flow, upcoming SIPs/EMIs, goal progress - everything filterable by **Lalit / Sujata / Joint / whole household** |
-| **Spend** | Expenses with payment method: Bank/UPI, Credit Card, Meal / Fuel / Telecom card (each from your card master); online-vs-physical purchase type + vendor; a **Credit Card Payment** category that settles a card's outstanding balance (and correctly reduces what it shows as owed); add several transactions at once, or repeat one on a schedule (same or different amount each time); **bulk-import from a Paytm/GPay/bank statement PDF or a bank/UPI CSV export**, with duplicate detection across statements and against SIPs, EMIs, investments and transfers the app already tracks (see INTEGRATIONS.md #3b). Dashboard: category pie, stacked spend-by-month, method/card/person breakdowns, filters everywhere |
+| **Spend** | Expenses with payment method: Bank/UPI, Credit Card, Meal / Fuel / Telecom card (each from your card master); online-vs-physical purchase type + vendor; a **Credit Card Payment** category that settles a card's outstanding balance (and correctly reduces what it shows as owed); add several transactions at once, or repeat one on a schedule (same or different amount each time); **bulk-import from a Paytm/GPay/bank statement PDF or a bank/UPI CSV export**, with duplicate detection across statements and against SIPs, EMIs, investments and transfers the app already tracks (see INTEGRATIONS.md #3b). Dashboard: category pie, stacked spend-by-month, method/card/person breakdowns, filters everywhere (including by bank account or card, with a fix-up view for expenses that have no account); select many transactions to edit their account/category or delete them in one go |
 | **Income** | Salary and other inflows by person, account and source (a real dropdown: Salary, Rent, Dividend, Business, Capital Gains, …); one-tap "repeat last month's salary"; person/source filters |
 | **Invest** | Dashboard with proper categories for every asset type (including NPS and Real Estate, not lumped into "Other"), holdings, **SIP master** (fund, category, amount, date, bank, goal tag, and whether it's self-funded or **employer-credited** like EPF/NPS), manual "Add / withdraw" for extra investments, **CAS PDF import** (CDSL/NSDL/CAMS/KFintech). An asset (e.g. a flat) can be tagged to the loan it secures, so goals only count its net equity |
 | **Goals** | Target, date, inflation, return → **monthly SIP needed**; rate scenarios; tag SIPs/investments from either side (a mortgaged asset counts net of the loan it secures); suggested avenues by time horizon |
@@ -38,7 +38,7 @@ src/data/       Supabase store, in-browser demo store, seed data
 src/pages/      screens          src/components/  shell, charts, forms, ui kit
 api/daily.js    Vercel function: automation + prices + snapshot (helpers in api/_lib/)
 supabase/       schema.sql (tables, RLS, RPCs) and a Postgres-level RLS test
-tests/          Vitest (160 tests)
+tests/          Vitest (170 tests)
 ```
 
 ## Commands
